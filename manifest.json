@@ -28,6 +28,16 @@
     "vscode"
   ],
   "source_files_count": 13,
+  "license": "MIT",
+  "repo": "https://github.com/sdhack/douyin-hot-comment-pool",
+  "changelog": "CHANGELOG.md",
+  "security": "SECURITY.md",
+  "authors": [
+    {
+      "name": "Gao Ming",
+      "github": "https://github.com/sdhack"
+    }
+  ],
   "components": {
     "scripts": [
       "tools/run_daily.py",
@@ -46,6 +56,13 @@
     },
     "references": [
       "references/keywords.example.yml"
+    ],
+    "docs": [
+      "README.md",
+      "CHANGELOG.md",
+      "SECURITY.md",
+      "CONTRIBUTING.md",
+      "CODE_OF_CONDUCT.md"
     ],
     "tests": [
       "tests/selfcheck.py",
