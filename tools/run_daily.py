@@ -2,7 +2,7 @@
 """爆款评论池·每日调度（核心编排：采样→筛选→每日配额达标即停→沉淀→断点续跑）。
 
 单一命令完成"今天刷一堆爆款评论"，主路径为实时 MediaCrawler 采集：
-  1) 关键词广撒网→ MediaCrawler 抓视频+评论（复用 douyin-crawl-report 的 crawl.py）；
+  1) 关键词广撒网→ MediaCrawler 直接抓视频+评论（collect_search.py 内嵌调度，零外部技能依赖）；
   2) 各关键词评论经 aggregate_comments 聚合为 comments.json；
   3) 三级门槛筛选（感高互动→字数→可成文性，复用 filter_pool.py 函数）；
   4) 达标即停：每天最多入池 QUOTA 条（默认 5）。当日已入选数在 pool.json 的
@@ -12,7 +12,8 @@
 
 用法（主路径-实时采集）:
   python tools/run_daily.py --root <工作根> --account <slug> --keywords "甲;乙;丙"
-      [--per-keyword 30] [--comments-count 100] [--speed safe]
+      [--preset safe|fast]            # 默认 safe=慢档(并发1/延时3-8s,最稳)；fast=快档(并发3/延时1-3s,提速)
+      # 显式 --speed/--sleep-*/--per-keyword/--comments-count 会覆盖 preset
       [--min-likes 1000] [--min-replies 50] [--min-len 30] [--min-score 55]
       [--quota 5] [--dry-run]
 用法（调试-离线）:
@@ -33,6 +34,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import aggregate_comments  # noqa: E402
 import filter_pool  # noqa: E402
+import _presets  # noqa: E402
 
 
 def _load_pool(root, account, quota):
@@ -145,13 +147,18 @@ def main():
     ap.add_argument("--root", required=True)
     ap.add_argument("--account", default="pool")
     ap.add_argument("--keywords", required=True, help="关键词，分号分隔；实时 MediaCrawler 采集+筛选为主路径")
-    ap.add_argument("--per-keyword", type=int, default=30)
-    ap.add_argument("--comments-count", type=int, default=100)
-    ap.add_argument("--speed", default="safe", choices=["safe", "normal", "fast"])
+    ap.add_argument("--preset", default="safe", choices=["safe", "fast"],
+                    help="采集档位：safe=慢档(并发1/延时3-8s，最稳)，fast=快档(并发3/延时1-3s，提速但风控面大)。默认 safe。")
+    ap.add_argument("--per-keyword", type=int, default=10,
+                    help="每关键词最多采样视频数（达标5条无需30；改小加快）")
+    ap.add_argument("--comments-count", type=int, default=30,
+                    help="单视频最多一级评论数（改小加快）")
+    ap.add_argument("--speed", default="safe", choices=["safe", "normal", "fast"],
+                    help="并发 level: safe=1 / normal=2 / fast=3（被显式指定时优先于 --preset）")
     ap.add_argument("--lt", default="qrcode")
     ap.add_argument("--cookies", default=None)
     ap.add_argument("--sleep-min", type=float, default=3)
-    ap.add_argument("--sleep-max", type=float, default=8)
+    ap.add_argument("--sleep-max", type=float, default=3)
     ap.add_argument("--retry-fail", type=int, default=2)
     ap.add_argument("--max-min", type=float, default=45)
     ap.add_argument("--min-likes", type=int, default=1000)
@@ -163,6 +170,7 @@ def main():
     ap.add_argument("--offline-source", default=None,
                     help="仅调试：喂存量聚合 JSON 做筛选（跳过采集），日常主路径不要用")
     a = ap.parse_args()
+    _presets.apply_preset(a, sys.argv)
 
     # 主路径：实时 MediaCrawler 关键词采集 → 聚合 → 三级筛选 → 入池 → 达标即停
     if a.offline_source:
@@ -205,9 +213,10 @@ def _run_offline_collect(a):
             sub_args += ["--cookies", a.cookies]
         r = subprocess.run(collect_args + sub_args)
         if r.returncode != 0:
-            print(f"  [daily] 关键词「{kw}」采集失败(exit {r.returncode})，跳过")
-            continue
-        # 定位最新 run 目录，找聚合产物
+            print(f"  [daily] 关键词「{kw}」采集退出码 {r.returncode}；"
+                  "不丢弃已有部分数据，下方仍尝试聚合本次抓取的存量评论")
+        # 定位最新 run 目录找聚合产物：无论成功与否，只要已抓到评论就聚合入池
+        # （避免「抓了一部分却在超时/重试失败时整轮返 0 被当成无新增，丢掉有效样本」）
         run_root = None
         pointer = os.path.join(root, f".douyin-crawl-current-{account}.json")
         if os.path.isfile(pointer):

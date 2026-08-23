@@ -1,6 +1,6 @@
 {
   "name": "douyin-hot-comment-pool",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "owner": "Gao Ming",
   "updated_at": "2026-08-23",
   "status": "active",
@@ -27,7 +27,7 @@
     "agent-skills-compatible",
     "vscode"
   ],
-  "source_files_count": 13,
+  "source_files_count": 14,
   "license": "MIT",
   "repo": "https://github.com/sdhack/douyin-hot-comment-pool",
   "changelog": "CHANGELOG.md",
@@ -44,6 +44,7 @@
       "tools/collect_search.py",
       "tools/filter_pool.py",
       "tools/aggregate_comments.py",
+      "tools/_presets.py",
       "sqlite/db.py",
       "sqlite/loader.py",
       "sqlite/hits_backfill.py",
@@ -72,16 +73,15 @@
   "required_dependencies": {
     "python": "3.9+",
     "sqlite": "内置",
+    "runtime": "MediaCrawler（实时采集时直调其 main.py，经 env/全局注册指针 runtime-registry.json/默认缓存解析）",
     "optional": [
-      "douyin-crawl-report 技能（实时采集时提供 crawl.py 搜索引擎）",
-      "mediacrawler（实时采集时提供登录态与抓取引擎）",
       "master-copywriting（文案改写）"
     ]
   },
   "permissions": {
     "network": "实时采集需网络访问抖音 API；离线筛选/建库仅本地",
     "file_write": "写 pool/<account>.json 与本地 SQLite",
-    "subprocess": "采集时调用 douyin-crawl-report/mediacrawler",
+    "subprocess": "采集时直接调用本机 MediaCrawler",
     "interactive": "首次实时采集需扫码登录一次",
     "compliance": "仅抓公开可浏览评论区，控制采集频率避免风控；爆款评论用于借鉴结构/钩子、重写表达，不建议照搬商用（版权风险）"
   }

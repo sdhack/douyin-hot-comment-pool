@@ -9,6 +9,24 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.8.0] - 2026-08-23
+
+采集链路解耦重构 + 提速 + 可靠性修复。
+
+### Changed
+- **实时采集零外部技能依赖**：`collect_search.py` 改为直接解析并调用本机 MediaCrawler（env `MEDIACRAWLER_PY/MC_ROOT` > 全局注册指针 `runtime-registry.json` > 默认缓存），完全内嵌调度，移除对 douyin-crawl-report 的任何引用；`SKILL.md`/`manifest.json` 依赖声明同步更新。
+- **新增 `--preset` 采集档位**（默认 `safe`）：
+  - `safe`：并发1、延时 3-8s（最稳，风控压力最小）
+  - `fast`：并发3、延时 1-3s（提速但风控暴露面更大）
+  - 显式 `--speed/--sleep-*/--per-keyword/--comments-count` 始终优先于 preset。
+  - 预设解析收拢到共享模块 `tools/_presets.py`，避免 run_daily 与 collect_search 默认值漂移。
+- **提速默认**：`per-keyword` 30→10、`comments-count` 100→30（达标 5 条无需超采），配合 fast 档全链路实测约 13min → ~1min。
+
+### Fixed
+- **部分成功即丢数据**：采集进程返回非 0（超时/重试失败）时，`run_daily` 原直接 `continue` 丢弃已抓数据；现改为仍尝试聚合本次抓取的存量评论并入池，避免"抓到一半被判今日无新增"。
+- **评论产物递归扫描**：MediaCrawler 将 jsonl 落在 `crawl_<account>/douyin/jsonl/`（含平台子目录），评论产物检测改为递归 glob，修复"已抓评论却误判未发现"。
+- **Playwright 环境缺陷**：README/SECURITY 补充 `playwright install chromium --only-shell` 装机说明（缺失 `chromium_headless_shell` 会导致启动崩溃）。
+
 ## [0.7.0] - 2026-08-23
 
 技能首发并对外公开仓库。此前为本地迭代开发成型（三级门槛、达标即停、MediaCrawler 实时采集等能力已稳定），自本版本起纳入版本管理与公开追踪。

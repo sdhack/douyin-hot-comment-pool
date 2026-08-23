@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置-003B57?logo=sqlite&logoColor=fff)](#)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.7.0-blue)](#)
+[![Skill v](https://img.shields.io/badge/Skill-v0.8.0-blue)](#)
 [![Platform](https://img.shields.io/badge/Platform-TRAE%20%2F%20Claude%20%2F%20OpenAI-lightgrey)](#)
 
 </div>
@@ -83,13 +83,20 @@
 python sqlite\db.py --init     REM 首次建库（自带空库，schema 已就绪）
 ```
 
+**仅实时采集需本机已装 MediaCrawler**（`collect_search.py` 直接调度其 `main.py`，经 env `MEDIACRAWLER_PY/MC_ROOT` > 全局注册指针 `runtime-registry.json` > 默认缓存 `~/.cache/codex-mediacrawler/MediaCrawler` 解析）。若首次启动报 `Executable doesn't exist ...chromium_headless_shell`，补装 Playwright 浏览器二进制：
+
+```bat
+<mediacrawler>\\.venv\Scripts\python.exe -m playwright install chromium --only-shell
+```
+
 ### 1️⃣ 一键日更：每天捞 5 条爆款评论即停
 
 ```bat
 set POOL=%~dp0
+REM 默认 --preset safe=慢档（并发1/延时3-8s，最稳）；要提速换 --preset fast（并发3/延时1-3s，风控面更大）
 python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
-  --keywords "养生;智商税;避坑;宝妈" --quota 5 --per-keyword 30 ^
-  --comments-count 100 --speed safe --sleep-min 3 --sleep-max 8 --retry-fail 2
+  --keywords "养生;智商税;避坑;宝妈" --quota 5 --preset safe --retry-fail 2
+REM 显式 --speed/--sleep-*/--per-keyword/--comments-count 会覆盖 preset
 ```
 
 ### 2️⃣ 只用已有的评论数据跑通筛选（离线调试）
@@ -154,7 +161,7 @@ python sqlite\report.py --threads --cid <评论id>  REM 查看某爆款的讨论
 
 ## 🛡️ 合规边界
 
-- 只抓**公开可浏览**的评论区，控制频率（`--speed safe` + 随机延时 + 失败重试）避免触发风控。
+- 只抓**公开可浏览**的评论区，频率经 `--preset` 控制：默认 `safe`（并发1 + 延时3-8s + 失败重试）最稳；`--preset fast`（并发3 + 延时1-3s）提速但风控暴露面更大，正式账号务必谨慎。
 - 爆款评论用于**借鉴结构 / 钩子、重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
 - 采集数据由数据拥有方自行保管，打包不携带真实数据外发。
 
@@ -167,7 +174,7 @@ python tests\selfcheck.py          REM 三级门槛逻辑自测
 python tests\sqlite_selfcheck.py   REM SQLite 全链路端到端自测（9 项）
 ```
 
-`sqlite_selfcheck` 覆盖：建库视图 → 导入 → 讨论串 → 幂等重复导入 → hits 回流 → 讨论串视图。隔离解压后直接跑通 = 可移植。✓（v0.7.0 全通过）
+`sqlite_selfcheck` 覆盖：建库视图 → 导入 → 讨论串 → 幂等重复导入 → hits 回流 → 讨论串视图。隔离解压后直接跑通 = 可移植。✓（v0.8.0 全通过）
 
 ---
 
@@ -187,9 +194,10 @@ douyin-hot-comment-pool/
 │   └── keywords.example.yml    # 关键词池配置示例
 ├── tools/
 │   ├── run_daily.py            # 每日主路径：实时采集→筛选→沉淀→达标即停
-│   ├── collect_search.py       # 关键词广撒网采集（走 MediaCrawler）
+│   ├── collect_search.py       # 关键词广撒网采集（直接调度本机 MediaCrawler）
 │   ├── filter_pool.py          # 三级门槛筛选（可离线单独用）
-│   └── aggregate_comments.py   # 评论 jsonl 聚合（每视频按赞 top-N）
+│   ├── aggregate_comments.py   # 评论 jsonl 聚合（每视频按赞 top-N）
+│   └── _presets.py             # --preset 采集档位预设（safe/fast，供 run_daily 与 collect_search 共享）
 ├── sqlite/
 │   ├── db.py                   # 建库建表（6表+3视图），一键 init
 │   ├── loader.py               # 幂等导入搜索批次 → 库
@@ -208,7 +216,7 @@ douyin-hot-comment-pool/
 | 依赖 | 用途 | 备注 |
 |------|------|------|
 | Python 3.9+ | 运行 | 离线筛选 / 建库仅需标准库 |
-| `douyin-crawl-report` 或 `mediacrawler` | 实时采集 | 提供 MediaCrawler 引擎与登录态 |
+| MediaCrawler | 实时采集（可选） | 直接调度其 main.py，需 `playwright install chromium --only-shell` 浏览器二进制 |
 | `master-copywriting` | 文案改写（可选） | 把池中爆款评论改写成成 IP 账号文案 |
 
 ---

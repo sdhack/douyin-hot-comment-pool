@@ -32,14 +32,13 @@ description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（
 
 ```bat
 set POOL=%USERPROFILE%\.trae-cn\skills\douyin-hot-comment-pool
-REM 实时采集 + 筛选 + 沉淀 + 达标即停（一键）
+REM 实时采集 + 筛选 + 沉淀 + 达标即停（一键；默认 --preset safe=慢档：并发1/延时3-8s，最稳）
 python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
-  --keywords "养生;智商税;避坑;宝妈" --quota 5 ^
-  --per-keyword 30 --comments-count 100 --speed safe ^
-  --sleep-min 3 --sleep-max 8 --retry-fail 2 --max-min 45
+  --keywords "养生;智商税;避坑;宝妈" --quota 5 --preset safe
+REM 提速用快档：--preset fast（并发3/延时1-3s，风控面更大）。显式 --speed/--sleep-*/--per-keyword 会覆盖 preset
 ```
 
-采集底层走 douyin-crawl-report 的 `crawl.py`（MediaCrawler，API 签名直抓，`--headless` 默认避免弹窗）。**首次需扫码登录一次**，之后复用登录态缓存。控制频率：`--speed safe` + `--sleep-min/--sleep-max` 随机延时 + `--retry-fail` 失败重试，避免风控。
+采集直接依赖 **MediaCrawler**（本机已安装的抓取引擎，`collect_search.py` 内嵌其调度，零外部技能依赖；API 签名直抓，`--headless` 默认避免弹窗）。**首次需扫码登录一次**，之后复用登录态缓存。频率经 `--preset` 控制：默认 `safe`（并发1、延时3-8s）最稳；切换 `--preset fast`（并发3、延时1-3s）提速但风控面更大。显式 `--speed/--sleep-*/--per-keyword` 会覆盖 preset。`--retry-fail` 失败重试。
 
 ### 调试：离线筛选（仅排障用）
 
@@ -102,8 +101,8 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 
 | 脚本 | 关键参数 |
 |---|---|
-| `run_daily.py` | `--root --account --keywords(必填,分号分隔) --quota --per-keyword --comments-count --speed --sleep-min/--sleep-max --retry-fail --max-min --headless --min-* [`--offline-source` 仅调试] |
-| `collect_search.py` | `--root --account --keywords(分号分隔) --per-keyword --comments-count --speed --sleep-min/--sleep-max --retry-fail --max-min --lt [--cookies] [--headless] [--raw-crawler]` |
+| `run_daily.py` | `--root --account --keywords(必填,分号分隔) --quota --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --min-* [`--offline-source` 仅调试]。显式 `--speed/--sleep-*` 覆盖 preset |
+| `collect_search.py` | `--root --account --keywords(分号分隔) --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --lt [--cookies] [--headless] [--raw-crawler]` |
 | `filter_pool.py` | `--in --out --min-likes --min-replies --min-len --min-score --max-n` |
 | `aggregate_comments.py` | `--in <jsonl或目录> --out --max`（每视频按赞 top-N） |
 
@@ -121,11 +120,11 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 
 - **达标即停是硬保证**：`run_daily` 每次先读当日 `daily` 计数，已满 `quota` 立即返回，不会重复抓/重复筛。
 - **沉淀池断点续跑**：`<account>.json` 是唯一事实来源，损坏则拒绝覆盖（不静默丢数据）。
-- **合规边界**：只抓公开可浏览评论区、控制频率（`--speed safe` + 随机延时）避免风控；爆款评论用于**借鉴结构/钩子，重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
-- **运行库**：`filter_pool / aggregate_comments / run_daily` 仅用标准库，任意 Python3 可跑；`collect_search` 走 douyin-crawl-report 的运行库解析。
+- **合规边界**：只抓公开可浏览评论区、控制频率避免风控。默认 `--preset safe`（并发1、延时3-8s）最稳；`--preset fast`（并发3、延时1-3s）提速但风控面更大，用于正式账号务必谨慎。爆款评论用于**借鉴结构/钩子，重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
+- **运行库**：`filter_pool / aggregate_comments / run_daily / collect_search` 仅用标准库（`collect_search` 另需本机已装的 MediaCrawler），任意 Python3 可跑。
 
 ## 依赖
 
-- `douyin-crawl-report` 技能（实时采集时）——提供 crawl.py 搜索引擎与运行库解析
+- **MediaCrawler**（实时采集时）——直接调其 `main.py`，无需任何外部技能中转；经 env、全局注册指针 `runtime-registry.json` 或默认缓存 `~/.cache/codex-mediacrawler/MediaCrawler` 解析
 - Python 3.9+（离线筛选仅需标准库）
 - （可选）master-copywriting 用于把池中评论改写成文案
