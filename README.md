@@ -177,6 +177,11 @@ python tests\sqlite_selfcheck.py   REM SQLite 全链路端到端自测（9 项�
 douyin-hot-comment-pool/
 ├── SKILL.md                    # 技能主规范（入口）
 ├── manifest.json               # 技能元数据 / 依赖 / 权限
+├── README.md                   # 项目说明（本文件）
+├── CHANGELOG.md                # 版本变更
+├── SECURITY.md                 # 安全边界与漏洞报告
+├── CONTRIBUTING.md             # 贡献指南
+├── CODE_OF_CONDUCT.md          # 行为准则
 ├── LICENSE                     # MIT
 ├── references/
 │   └── keywords.example.yml    # 关键词池配置示例
