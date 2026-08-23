@@ -9,6 +9,30 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.9.1] - 2026-08-24
+
+### Fixed
+- **跨天重复入选（历史计数虚增）**：`_already` 原只查当日 `hits`，同一评论跨天会被再次计为"新命中"（零点后首轮即把昨日命中整批重记）。现对齐 SKILL.md 去重规则「同 comment_id 或同文本不重复入选」：实时/离线两条筛选路径均以**全量历史命中（id + 文本）**做去重，当日配额只被真正的新评论消耗。`tests/ingest_selfcheck.py` 新增"跨天去重"场景（8 项断言全过）。
+- **批次记账互相覆盖**：`import_batch` 的 `batch_id` 原回落到 `account`，同账号连导多个关键词时 `batches` 表后词覆盖前词统计。现新增可选 `batch_id` 参数，`run_daily` 按 `<account>.<关键词>.<时间戳>` 传入，逐词独立记账。
+- **库文件移出版本库（防数据外泄）**：`sqlite/douyin_hotpool.db` 不再被 git 跟踪（`.gitignore` 新增 `sqlite/*.db`），真实采集数据绝不随包外发；接收方克隆后执行 `python sqlite/db.py --init` 一键重建空库，manifest 同步更新库说明。
+
+## [0.9.0] - 2026-08-23
+
+实时入库管线重构：逐词即时入库 + 磁盘零 JSON 残留 + 末尾当日报告。
+
+### Changed
+- **逐关键词实时入库**：`run_daily` 主路径重构为"单关键词采集 → 立即 loader 导入 SQLite → 写入 hits（配额封顶）→ 清理"的逐词循环；不再"全部词跑完后统一聚合入库"。
+- **筛选全程内存化，聚合 JSON 不再落盘**：`aggregate_comments.py` 抽出纯内存函数 `aggregate_paths()`（CLI 落盘仅保留调试用途）；`run_daily` 的三级门槛筛选改在内存中完成，全程不产生 `comments_aggregated.json`。
+- **磁盘零 JSON 残留**：每词入库成功（或确认无数据）后，整段删除运行目录（含 MediaCrawler 的 `search_*.jsonl`、cursor、聚合残留）；运行结束删除 `.douyin-crawl-current-<account>.json` 指针。数据唯一落点是 SQLite；**入库失败则保留现场便于排障**。
+- **达标即停颗粒度到词**：每个关键词开抓前实时复查 `hits` 表当日数，配额已满立即停止后续采集（原有仅"启动前查一次"）。
+- **末尾输出当日采集报告**：逐词统计（采集视频/入库评论/新增命中/状态）、当日入池明细（评分/赞回/内容摘录）、库内累计、耗时与停止原因，一次运行结束即得全景。
+
+### Fixed
+- **聚合 top-N 失真**：旧版 `aggregate_comments` 先按原始顺序切片 top-N、之后才排序，导致"每视频按赞 top-N"名不副实；现改为先按 `like_count` 降序再截取。
+
+### Added
+- **`tests/ingest_selfcheck.py`**：实时入库管线离线自测（入库/三级门槛/配额封顶/目录清理/空结果清理/top-N 排序回归），共 7 项断言，不依赖网络与 MediaCrawler。
+
 ## [0.8.0] - 2026-08-23
 
 采集链路解耦重构 + 提速 + 可靠性修复。

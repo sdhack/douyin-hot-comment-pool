@@ -1,7 +1,7 @@
 ---
 name: "douyin-hot-comment-pool"
-version: "0.8.0"
-description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，每日达标即停；数据可落入技能内置 SQLite 做累计与分析。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"
+version: "0.9.0"
+description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、磁盘零 JSON 残留、每日达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"
 ---
 
 # 抖音爆款评论池（Douyin Hot Comment Pool）
@@ -24,7 +24,7 @@ description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（
 
 ## 工作流
 
-主路径是**实时 MediaCrawler 采集**（API 签名直抓，非浏览器 DOM 模拟）：关键词广撒网 → MediaCrawler 抓视频+评论 → 聚合 → 三级门槛筛选 → 入库（原始+命中）→ 达标即停。离线只用于调试，不作日常入口。
+主路径是**实时 MediaCrawler 采集**（API 签名直抓，非浏览器 DOM 模拟）：**逐关键词** 采集 → 立即实时导入 SQLite → 内存聚合+三级门槛筛选 → 写入命中（配额封顶）→ 清理采集目录（磁盘零 JSON 残留）→ 下一词开抓前复查配额达标即停 → 末尾输出当日报告。离线只用于调试，不作日常入口。
 
 ### 主路径：实时 MediaCrawler 采集（日常用）
 
@@ -104,11 +104,11 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 | `run_daily.py` | `--root --account --keywords(必填,分号分隔) --quota --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --min-* [`--offline-source` 仅调试]。显式 `--speed/--sleep-*` 覆盖 preset |
 | `collect_search.py` | `--root --account --keywords(分号分隔) --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --lt [--cookies] [--headless] [--raw-crawler]` |
 | `filter_pool.py` | `--in --out --min-likes --min-replies --min-len --min-score --max-n` |
-| `aggregate_comments.py` | `--in <jsonl或目录> --out --max`（每视频按赞 top-N） |
+| `aggregate_comments.py` | 内存聚合入口 `aggregate_paths(fps, max_n)`（主路径）；CLI `--in <jsonl或目录> --out --max` 仅调试落盘 |
 
 ## 输出结构
 
-**采集数据默认入库（不再输出 pool/<account>.json）**：
+**数据唯一落点是技能内置 SQLite，磁盘零 JSON 残留**：
 
 ```
 技能内置 SQLite（sqlite/douyin_hotpool.db）
@@ -120,12 +120,14 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
   batches    ← 每次采集批次元信息（时间/词/视频/评论数）
 ```
 
-查看爆款榜：`python sqlite\report.py --hot`；汇总 `--stats`；讨论串 `--threads --cid <id>`。
+- 每个关键词抓完**立即入库**（loader 幂等导入原始数据 + hits 写入选），随后整段删除该词的运行目录（MediaCrawler jsonl/cursor 一并清理）；入库失败则保留现场排障。
+- 运行结束删除 `.douyin-crawl-current-<account>.json` 指针，末尾打印**当日采集报告**（逐词统计/当日命中明细/库内累计/停止原因）。
+- 查看爆款榜：`python sqlite\report.py --hot`；汇总 `--stats`；讨论串 `--threads --cid <id>`。
 
 ## 关键约束（跨 Agent 复用安全）
 
-- **达标即停是硬保证**：`run_daily` 每次先查 `hits` 表当日（`hit_date=今天`）已入选数，已满 `quota` 立即返回，不会重复抓/重复筛。
-- **入库即默认数据落点**：采集数据幂等写入 `accounts/videos/comments/ancestry/batches`，精选命中写 `hits`，不再输出 pool JSON 文件。
+- **达标即停是硬保证**：`run_daily` 在启动时与**每个关键词开抓前**都查 `hits` 表当日（`hit_date=今天`）已入选数，已满 `quota` 立即停止后续采集，不会重复抓/重复筛。
+- **入库即唯一数据落点**：逐词实时幂等写入 `accounts/videos/comments/ancestry/batches`，精选命中写 `hits`；筛选全程在内存完成，运行目录用后即删——工作根下不残留任何采集 JSON（入库失败时保留现场便于排障）。
 - **合规边界**：只抓公开可浏览评论区、控制频率避免风控。默认 `--preset safe`（并发1、延时3-8s）最稳；`--preset fast`（并发3、延时1-3s）提速但风控面更大，用于正式账号务必谨慎。爆款评论用于**借鉴结构/钩子，重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
 - **运行库**：`filter_pool / aggregate_comments / run_daily / collect_search` 仅用标准库（`collect_search` 另需本机已装的 MediaCrawler），任意 Python3 可跑。
 

@@ -80,8 +80,12 @@ def _pictures_url(r):
     return json.dumps([u for u in urls if u], ensure_ascii=False) if urls else ""
 
 
-def import_batch(conn, batch_dir, keyword="", account="", batches=True):
-    """返回 {videos, comments, accounts}。”"""
+def import_batch(conn, batch_dir, keyword="", account="", batches=True, batch_id=None):
+    """返回 {videos, comments, accounts}。
+
+    batch_id 可显式指定（推荐 "<account>.<关键词>.<时间戳>"）；缺省回落到 account，
+    再回落到目录名——同 account 连导多个关键词会互相覆盖批次行，故调度方应显式传。
+    """
     batch_dir = os.path.normpath(batch_dir)
     # 向下定位 douyin/jsonl（可能在 batch根 或 crawl_<account>/ 下）
     jsonl_d = os.path.join(batch_dir, ROOT_MARK, "jsonl")
@@ -93,7 +97,7 @@ def import_batch(conn, batch_dir, keyword="", account="", batches=True):
                 break
     if not os.path.isdir(jsonl_d) or not glob.glob(os.path.join(jsonl_d, "*.jsonl")):
         raise FileNotFoundError(f"不是有效批次目录(缺含jsonl的 {ROOT_MARK}/jsonl): {batch_dir}")
-    bid = account or _batch_id(batch_dir)
+    bid = batch_id or account or _batch_id(batch_dir)
 
     # 预写批次元信息
     if batches:
