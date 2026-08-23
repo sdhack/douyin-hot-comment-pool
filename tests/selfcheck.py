@@ -6,8 +6,10 @@
 """
 import json
 import os
+import sqlite3
 import sys
 import tempfile
+from datetime import date
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
 import filter_pool  # noqa: E402
@@ -60,10 +62,23 @@ def main():
     print(f"[selfcheck-1] 期望入选 comment_id：{sorted(exp_pass)}")
     assert got == exp_pass, f"filter_pool 逻辑不符: got={got} expected={exp_pass}"
 
-    # 2) run_daily 达标即停：配额 3，样例只应有 3 入选
+    # 2) run_daily 达标即停：配额 3，样例只应有 3 入选（数据默认入库，写 isolation db）
     root = os.path.join(tmp, "root")
     os.makedirs(root, exist_ok=True)
-    ap = ["--root", root, "--account", "pool", "--offline-source", src,
+    tdb = os.path.join(tmp, "selfcheck.db")   # 隔离库，避免污染/干扰真实库
+    # 预置样例三表 → 满足外键链：accounts(creator_hash) → videos(creator_hash) → comments(aweme_id)；hits.comment_id→comments
+    c0 = run_daily._db.open_db(tdb)
+    run_daily._db.ensure_schema(c0)
+    c0.execute("INSERT OR IGNORE INTO accounts(creator_hash) VALUES(?)", ("S",))
+    for i in range(len(_SAMPLES)):
+        c0.execute("INSERT OR IGNORE INTO videos(aweme_id, creator_hash) VALUES(?,?)",
+                   (str(1000 + i), "S"))
+    for i in range(len(_SAMPLES)):
+        c0.execute("INSERT OR IGNORE INTO comments(comment_id, aweme_id) VALUES(?,?)",
+                   (str(i), str(1000 + i)))
+    c0.commit()
+    c0.close()
+    ap = ["--root", root, "--account", "pool", "--offline-source", src, "--db", tdb,
           "--keywords", "调试占位", "--per-keyword", "0",
           "--min-likes", "1000", "--min-replies", "40", "--min-len", "20",
           "--min-score", "50", "--quota", "3"]
@@ -73,21 +88,23 @@ def main():
     finally:
         sys.argv = old
     assert rc == 0, f"run_daily 返回 {rc}"
-    pool_path = os.path.join(root, "pool", "pool.json")
-    pool = json.load(open(pool_path, encoding="utf-8"))
-    added = pool["daily"][list(pool["daily"].keys())[0]]["count"]
+    with sqlite3.connect(tdb) as conn:
+        conn.row_factory = sqlite3.Row
+        added = conn.execute(
+            "SELECT COUNT(*) AS n FROM hits WHERE hit_date=?", (date.today().isoformat(),)).fetchone()["n"]
     print(f"[selfcheck-2] 达标即停：quota=3 实入池={added}")
     assert added == 3, f"配额达标即停失效: 期望3 实得{added}"
-    assert len(pool["pool"]) == 3
 
-    # 3) 再跑一次：配额已满应直接提示达标即停，不重复
+    # 3) 再跑一次：配额已满应直接提示达标即停，不重复（当日 hits 仍为 3）
     sys.argv = ["run_daily.py"] + ap
     rc = run_daily.main()
     assert rc == 0
-    pool2 = json.load(open(pool_path, encoding="utf-8"))
-    d2 = pool2["daily"][list(pool2["daily"].keys())[0]]
-    print(f"[selfcheck-3] 幂等：当日已满仍为 {d2['count']}")
-    assert d2["count"] == 3, "重复运行不应新增"
+    with sqlite3.connect(tdb) as conn:
+        conn.row_factory = sqlite3.Row
+        d2 = conn.execute(
+            "SELECT COUNT(*) AS n FROM hits WHERE hit_date=?", (date.today().isoformat(),)).fetchone()["n"]
+    print(f"[selfcheck-3] 幂等：当日已满仍为 {d2}")
+    assert d2 == 3, "重复运行不应新增"
 
     print("=== Selfcheck PASSED ===")
     return 0

@@ -21,6 +21,8 @@
   - 显式 `--speed/--sleep-*/--per-keyword/--comments-count` 始终优先于 preset。
   - 预设解析收拢到共享模块 `tools/_presets.py`，避免 run_daily 与 collect_search 默认值漂移。
 - **提速默认**：`per-keyword` 30→10、`comments-count` 100→30（达标 5 条无需超采），配合 fast 档全链路实测约 13min → ~1min。
+- **采集数据默认入库、不再写 json**：`run_daily` 主路径将原始采集幂等导入 `accounts/videos/comments/ancestry/batches`，精选命中写入 `hits` 表；不再输出 `pool/<account>.json`。达标即停的当日计数改从 `hits` 表（`hit_date=今天`）读取，跨天自动重置。
+- **版本同步**：`SKILL.md` 元数据版本号 0.7.0 → 0.8.0；README / SKILL / manifest 产物描述统一为「默认入库 SQLite」。
 
 ### Fixed
 - **部分成功即丢数据**：采集进程返回非 0（超时/重试失败）时，`run_daily` 原直接 `continue` 丢弃已抓数据；现改为仍尝试聚合本次抓取的存量评论并入池，避免"抓到一半被判今日无新增"。
