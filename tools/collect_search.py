@@ -342,9 +342,8 @@ def main():
         print("[collect] dry-run 完成，未实际采集")
         return
     print(f"[collect] 完成：成功 {len(products)} 轮 / 失败 {fail} 轮 → 运行目录 {run_root}")
-    for r in products:
-        print(f"[下一阶段] aggregate_comments.py --in {os.path.join(r, 'crawl_' + a.account)} "
-              f"--out {os.path.join(r, 'comments_aggregated.json')}")
+    if products:
+        print("[提示] 由 run_daily 调度时：本目录 jsonl 会被实时导入 SQLite 后整体删除（磁盘零 JSON 残留）")
     sys.exit(0 if products and fail == 0 else 1)
 
 
