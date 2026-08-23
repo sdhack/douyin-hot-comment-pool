@@ -80,7 +80,7 @@
   },
   "permissions": {
     "network": "实时采集需网络访问抖音 API；离线筛选/建库仅本地",
-    "file_write": "写 pool/<account>.json 与本地 SQLite",
+    "file_write": "写本地 SQLite（douyin_hotpool.db）；采集数据默认入库，不写 pool/<account>.json",
     "subprocess": "采集时直接调用本机 MediaCrawler",
     "interactive": "首次实时采集需扫码登录一次",
     "compliance": "仅抓公开可浏览评论区，控制采集频率避免风控；爆款评论用于借鉴结构/钩子、重写表达，不建议照搬商用（版权风险）"

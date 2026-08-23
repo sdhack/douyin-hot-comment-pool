@@ -6,7 +6,6 @@ pool 是技能筛选出的爆款列表（如 pool/<account>.json 的 pool 数组
 
 用法:
   python tools/hits_backfill.py --pool <pool.json> [--db <path>]
-    --all-root  额外扫描工作根下所有 crawl jsonl，把 pool 命中评论的评论行补写进 comments（可选，加强关联）
 """
 import argparse
 import json
