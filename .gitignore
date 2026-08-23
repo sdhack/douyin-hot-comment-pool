@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# SQLite journal (WAL/SHM 会随库生成)
+*.db-wal
+*.db-shm
+*.db-journal
+
+# 运行期产物（勿入库）
+*.log
+pool/
+daily/
+candidates.json
+comments_aggregated.json
+
+# 系统
+.DS_Store
+Thumbs.db

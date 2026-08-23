@@ -1,0 +1,71 @@
+{
+  "name": "douyin-hot-comment-pool",
+  "version": "0.7.0",
+  "owner": "Gao Ming",
+  "updated_at": "2026-08-23",
+  "status": "active",
+  "maturity_tier": "reusable",
+  "lifecycle_stage": "reusable",
+  "context_budget_tier": "production",
+  "review_cadence": "monthly",
+  "skill_archetype": "automation-pipeline",
+  "description": "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，每日达标即停；数据可落入技能内置 SQLite 做累计与分析。",
+  "job_to_be_done": "猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材",
+  "default_prompt": "Use $douyin-hot-comment-pool when you need to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。",
+  "activation_mode": "manual",
+  "execution_context": "inline",
+  "shell": "bash",
+  "trust_level": "local",
+  "remote_inline_execution": "forbid",
+  "remote_metadata_policy": "allow-metadata-only",
+  "canonical_metadata": "SKILL.md",
+  "canonical_format": "agent-skills",
+  "target_platforms": [
+    "generic",
+    "claude",
+    "openai",
+    "agent-skills-compatible",
+    "vscode"
+  ],
+  "source_files_count": 13,
+  "components": {
+    "scripts": [
+      "tools/run_daily.py",
+      "tools/collect_search.py",
+      "tools/filter_pool.py",
+      "tools/aggregate_comments.py",
+      "sqlite/db.py",
+      "sqlite/loader.py",
+      "sqlite/hits_backfill.py",
+      "sqlite/report.py"
+    ],
+    "database": {
+      "sqlite": "sqlite/douyin_hotpool.db",
+      "schema": "sqlite/db.py",
+      "note": "打包自带空库（schema 就绪），采集数据由接收方通过 loader.py 自行导入，不随包外发"
+    },
+    "references": [
+      "references/keywords.example.yml"
+    ],
+    "tests": [
+      "tests/selfcheck.py",
+      "tests/sqlite_selfcheck.py"
+    ]
+  },
+  "required_dependencies": {
+    "python": "3.9+",
+    "sqlite": "内置",
+    "optional": [
+      "douyin-crawl-report 技能（实时采集时提供 crawl.py 搜索引擎）",
+      "mediacrawler（实时采集时提供登录态与抓取引擎）",
+      "master-copywriting（文案改写）"
+    ]
+  },
+  "permissions": {
+    "network": "实时采集需网络访问抖音 API；离线筛选/建库仅本地",
+    "file_write": "写 pool/<account>.json 与本地 SQLite",
+    "subprocess": "采集时调用 douyin-crawl-report/mediacrawler",
+    "interactive": "首次实时采集需扫码登录一次",
+    "compliance": "仅抓公开可浏览评论区，控制采集频率避免风控；爆款评论用于借鉴结构/钩子、重写表达，不建议照搬商用（版权风险）"
+  }
+}
