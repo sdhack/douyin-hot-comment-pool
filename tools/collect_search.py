@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """爆款评论池·关键词采集入口（核心职责：让一组关键词采样抖音视频+评论）。
 
 本工具把 MediaCrawler 的调度逻辑**完全内嵌**，零依赖 external 技能（如 douyin-crawl-report）：
@@ -248,7 +248,7 @@ def main():
             if kw not in seen:
                 seen.add(kw)
                 uni.append(kw)
-        random.Random(0).shuffle(uni)
+        random.shuffle(uni)
         keywords = uni
     if not keywords:
         sys.exit("[ERR] --keywords 不能为空（分号分隔），或 --raw-crawler 需带 --target")

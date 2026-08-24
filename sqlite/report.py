@@ -40,7 +40,7 @@ def hot_top(conn, top=20, by="score", min_likes=0):
         FROM hits h
         LEFT JOIN comments c ON c.comment_id = h.comment_id
         LEFT JOIN videos v   ON v.aweme_id = c.aweme_id
-        LEFT JOIN accounts a ON a.creator_hash = c.creator_hash
+        LEFT JOIN accounts a ON a.creator_hash = v.creator_hash  -- fix Bug-8:
         WHERE c.like_count >= ?
         ORDER BY {col} DESC
         LIMIT ?""", (min_likes, top)).fetchall()

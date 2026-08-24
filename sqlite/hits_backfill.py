@@ -18,13 +18,15 @@ from db import open_db, ensure_schema, DEFAULT_DB
 import loader
 
 
-def write_hits(conn, pool_entries, hit_date=None):
+def write_hits(conn, pool_entries, hit_date=None, batch_id=""):
     hit_date = hit_date or datetime.datetime.now().strftime("%Y-%m-%d")
-    stmt = """INSERT INTO hits(comment_id, aweme_id, score, passed_level, reasons, score_break, hit_date)
-              VALUES(?,?,?,?,?,?,?)
+    stmt = """INSERT INTO hits(comment_id, aweme_id, score, passed_level, reasons, score_break, hit_date, batch_id)
+              VALUES(?,?,?,?,?,?,?,?)
               ON CONFLICT(comment_id) DO UPDATE SET
                 score=excluded.score, passed_level=excluded.passed_level,
-                reasons=excluded.reasons, score_break=excluded.score_break, hit_date=excluded.hit_date"""
+                reasons=excluded.reasons, score_break=excluded.score_break,
+                hit_date=min(hits.hit_date, excluded.hit_date),
+                batch_id=COALESCE(NULLIF(excluded.batch_id,''), hits.batch_id)"""  # fix Bug-4: 保留最早命中日；批次号仅在不为空时回填
     n = 0
     for c in pool_entries:
         cid = str(c.get("comment_id") or "")
@@ -34,7 +36,7 @@ def write_hits(conn, pool_entries, hit_date=None):
             cid, str(c.get("aweme_id") or ""), float(c.get("score") or 0),
             "123", json.dumps(c.get("reasons") or [], ensure_ascii=False),
             json.dumps(c.get("score_breakdown") or {}, ensure_ascii=False),
-            hit_date))
+            hit_date, str(batch_id or "")))
         n += 1
     conn.commit()
     return n

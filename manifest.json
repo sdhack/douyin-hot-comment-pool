@@ -1,8 +1,8 @@
 {
   "name": "douyin-hot-comment-pool",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "owner": "Gao Ming",
-  "updated_at": "2026-08-24",
+  "updated_at": "2026-08-25",
   "status": "active",
   "maturity_tier": "reusable",
   "lifecycle_stage": "reusable",
@@ -27,7 +27,7 @@
     "agent-skills-compatible",
     "vscode"
   ],
-  "source_files_count": 15,
+  "source_files_count": 16,
   "license": "MIT",
   "repo": "https://github.com/sdhack/douyin-hot-comment-pool",
   "changelog": "CHANGELOG.md",
@@ -41,6 +41,7 @@
   "components": {
     "scripts": [
       "tools/run_daily.py",
+      "tools/run_daily_v2.py",
       "tools/collect_search.py",
       "tools/filter_pool.py",
       "tools/aggregate_comments.py",

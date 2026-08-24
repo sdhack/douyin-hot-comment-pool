@@ -123,7 +123,7 @@ SELECT h.comment_id, h.score, h.passed_level, h.hit_date,
 FROM hits h
 LEFT JOIN comments c ON c.comment_id = h.comment_id
 LEFT JOIN videos v   ON v.aweme_id = c.aweme_id
-LEFT JOIN accounts a  ON a.creator_hash = c.creator_hash;
+LEFT JOIN accounts a  ON a.creator_hash = v.creator_hash;  -- fix Bug-8: 经视频关联作者（评论侧hash常为空）
 
 -- 讨论串层级视图
 CREATE VIEW IF NOT EXISTS vw_threads AS

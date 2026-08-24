@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.9.1-blue)](#)
+[![Skill v](https://img.shields.io/badge/Skill-v0.9.2-blue)](#)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **单场实测：4 小时无人值守 · 41 个关键词轮次 · 采样 3.8 万条评论 · 沉淀 100 条爆款命中 · 磁盘零 JSON 残留**
@@ -122,6 +122,26 @@
   库内累计: 视频 909 / 评论 37964 / 爆款命中 100
   耗时 361s  JSON 残留: 0（采集产物已随入库清理）
 ==============================================================
+```
+
+---
+
+## ⚡ 性能进化：v1 → v2 两段式采集（v0.9.2，2026-08-25）
+
+新增 `run_daily_v2.py` 两段式调度器：六关键词**合并单进程**广撒网搜索 → 本地按赞排序 + 跨天去重 → 仅对 Top 高赞视频定向深挖评论区（评论深度自适应 100~250 条/视频）。单轮全流程从 **25.5 分钟压缩到 81.8 秒（≈19×）**，四轮累计 8.4 分钟收满当日 5 条配额。
+
+| 指标 | v1 基线 | v2 |
+|---|---|---|
+| 首轮全流程 | 25.5 min | **81.8 s** |
+| 四轮累计（收满 5/5 配额） | — | 8.4 min |
+| 评论漏斗（每视频评论数） | 10 条 → 长评颗粒无收 | 100~250 条 → 稳定命中 |
+
+详细对比见 [`reports/compare-v1-vs-v2/`](reports/compare-v1-vs-v2/compare-v1-vs-v2.html)，基线测量与勘误见 [`养生爆款评论池运行报告`](reports/养生爆款评论池运行报告_20260824.html)。
+
+```bat
+python %POOL%\tools\run_daily_v2.py --root <工作根> --account <slug> ^
+  --keywords "养生;健康;医学科普" --quota 5 --preset fast
+REM 中断续跑（跳过已完成的搜索段直接进入深挖）：追加 --skip-search
 ```
 
 ---
@@ -256,6 +276,7 @@ douyin-hot-comment-pool/
 │   └── keywords.example.yml    # 关键词池配置示例
 ├── tools/
 │   ├── run_daily.py            # 每日主路径：逐词实时入库→内存筛选→达标即停→当日报告
+│   ├── run_daily_v2.py         # 两段式采集调度器（v0.9.2：合并搜索→定向深挖→断点续跑）
 │   ├── collect_search.py       # 关键词广撒网采集（直接调度本机 MediaCrawler）
 │   ├── filter_pool.py          # 三级门槛筛选（可离线单独用）
 │   ├── aggregate_comments.py   # 评论聚合（内存 aggregate_paths 主路径 + CLI 调试落盘）
@@ -266,10 +287,13 @@ douyin-hot-comment-pool/
 │   ├── hits_backfill.py        # 沉淀池命中回流 hits 表
 │   ├── report.py               # 汇总 / 爆款榜 / 账号榜 / 批次 / 讨论串
 │   └── douyin_hotpool.db       # 本地数据中心（不入版本库；db.py --init 重建）
-└── tests/
-    ├── selfcheck.py            # 三级门槛自测
-    ├── sqlite_selfcheck.py     # SQLite 全链路端到端自测
-    └── ingest_selfcheck.py     # 实时入库管线自测（8 项）
+├── tests/
+│   ├── selfcheck.py            # 三级门槛自测
+│   ├── sqlite_selfcheck.py     # SQLite 全链路端到端自测
+│   └── ingest_selfcheck.py     # 实时入库管线自测（8 项）
+└── reports/
+    ├── compare-v1-vs-v2/       # v1→v2 优化对比报告（HTML + 图表）
+    └── 养生爆款评论池运行报告_20260824.html
 ```
 
 ---

@@ -9,6 +9,23 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.9.2] - 2026-08-25
+
+两段式采集提速：单轮全流程 25.5 分钟 → 81.8 秒（≈19×），四轮累计 8.4 分钟收满当日配额。
+
+### Added
+- **`tools/run_daily_v2.py` 两段式调度器**：六关键词合并**单进程**搜索 → 本地按赞排序 + 跨天去重 → 仅对 Top 高赞视频定向深挖评论区；评论深度自适应提升至 100~250 条/视频，修复"每视频仅 10 条评论时长评颗粒无收"的漏斗断裂。
+- **断点续跑 `--skip-search`**：跳过已完成的搜索段直接进入定向深挖，中断零浪费。
+- **逐请求延时抖动（Bug-7）**：MediaCrawler 运行时补丁，`MC_SLEEP_MIN/MC_SLEEP_MAX` 区间内 uniform 抖动，`CRAWLER_MAX_SLEEP_SEC` 动态化防星号导入冻结快照。
+- **批次追溯回填**：`write_hits` 新增 `batch_id` 参数，UPSERT 时批次号仅非空回填。
+- **`reports/` 归档**：v1→v2 优化对比报告（HTML+图表）与养生爆款评论池运行报告。
+
+### Fixed
+- **命中日期回退（Bug-4）**：`write_hits` UPSERT 改为保留最早 `hit_date`（`min()`），重复入选不再把首次命中日刷新为今天。
+- **关键词洗牌失效（Bug-6）**：`collect_search` 关键词乱序原用固定种子 `random.Random(0)` 等于不洗牌，改为真随机。
+- **作者关联断裂（Bug-8）**：`vw_authors` 视图与 `report --hot` 经视频侧 `creator_hash` JOIN（评论侧 hash 常为空导致作者榜空转）。
+- **来源词首见冻结（Bug-10）**：视频 UPSERT 的 `source_keyword` 由"首见冻结"改为新关键词覆盖，跨词复采视频归属最新触发词。
+
 ## [0.9.1] - 2026-08-24
 
 ### Fixed

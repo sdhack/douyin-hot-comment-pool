@@ -1,6 +1,6 @@
 ---
 name: "douyin-hot-comment-pool"
-version: "0.9.0"
+version: "0.9.2"
 description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、磁盘零 JSON 残留、每日达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"
 ---
 
@@ -102,6 +102,7 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 | 脚本 | 关键参数 |
 |---|---|
 | `run_daily.py` | `--root --account --keywords(必填,分号分隔) --quota --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --min-* [`--offline-source` 仅调试]。显式 `--speed/--sleep-*` 覆盖 preset |
+| `run_daily_v2.py` | 两段式提速调度器：`--root --account --keywords(分号分隔) --quota --preset --per-keyword --comments-count [--skip-search 断点续跑]`。合并搜索→本地按赞排序去重→仅对 Top 高赞视频定向深挖（评论深度自适应 100~250 条/视频） |
 | `collect_search.py` | `--root --account --keywords(分号分隔) --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --lt [--cookies] [--headless] [--raw-crawler]` |
 | `filter_pool.py` | `--in --out --min-likes --min-replies --min-len --min-score --max-n` |
 | `aggregate_comments.py` | 内存聚合入口 `aggregate_paths(fps, max_n)`（主路径）；CLI `--in <jsonl或目录> --out --max` 仅调试落盘 |
