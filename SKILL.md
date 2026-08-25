@@ -1,6 +1,6 @@
 ---
 name: "douyin-hot-comment-pool"
-version: "0.9.4"
+version: "0.9.5"
 description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、磁盘零 JSON 残留、每日达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"
 ---
 

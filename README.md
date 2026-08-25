@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.9.2-blue)](#)
+[![Skill v](https://img.shields.io/badge/Skill-v0.9.5-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **单场实测：4 小时无人值守 · 41 个关键词轮次 · 采样 3.8 万条评论 · 沉淀 100 条爆款命中 · 磁盘零 JSON 残留**
@@ -18,6 +18,12 @@
 </div>
 
 ---
+
+## 不刷“热闹”，只沉淀可再创作的证据
+
+这套技能把评论当作可运营的数据资产，而非一次性截图：每条入选记录都保留互动、来源、评分和入选理由，跨批次去重并写入 SQLite。它的目标不是无限抓取，而是在每日配额达标时停止，把时间花在真正能转化成选题、脚本或洞察的长评论上。
+
+适合公开评论区的内容洞察和文案素材沉淀；不适合规避平台机制、批量导出个人信息，或把互动数据当作真实消费意愿的证明。
 
 ## ✨ 它解决什么
 
