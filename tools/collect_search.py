@@ -562,7 +562,7 @@ def main():
     ap.add_argument("--preset", default="safe", choices=["safe", "ultra", "fast"],
                     help="采集档位：safe=慢档(并发1/延时6-15s，稳)，ultra=超稳档(并发1/延时12-28s，风控期/长跑用)，fast=快档(并发3/延时2-6s，提速但风控面大)。默认 safe。")
     ap.add_argument("--per-keyword", type=int, default=0,
-                    help="每关键词最多采样视频数；0=不限（配合 --stop-at-like-floor，按视频一赞门槛自然结束，不再固定 1x 条）")
+                    help="每关键词最多采样视频数；0=不限（配合 --stop-at-like-floor，按视频1万赞门槛自然结束，不再固定 15 条）")
     ap.add_argument("--comments-count", type=int, default=30,
                     help="单视频最多一级评论数（需 base_config 打补丁）")
     ap.add_argument("--speed", default="safe", choices=["safe", "normal", "fast"],

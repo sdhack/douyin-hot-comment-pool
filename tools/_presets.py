@@ -7,7 +7,7 @@ fast=快档（约数倍提速，风控暴露面更大）。
 优先级高于 preset；preset 只填充未被用户显式指定的字段。
 """
 PRESETS = {
-    # per_keyword=0 = 不限条数：由按赞止停(视频一赞门槛)或搜索空页自然结束，不再按档位固定 10/15 条
+    # per_keyword=0 = 不限条数：由按赞止停(视频1万赞门槛)或搜索空页自然结束，不再按档位固定 10/15 条
     "safe": dict(speed="safe", sleep_min=6, sleep_max=15, per_keyword=0, comments_count=30),
     "ultra": dict(speed="safe", sleep_min=12, sleep_max=28, per_keyword=0,
                   comments_count=30, kw_gap=180),

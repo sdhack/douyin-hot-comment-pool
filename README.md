@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.9.13-blue)](CHANGELOG.md)
+[![Skill v](https://img.shields.io/badge/Skill-v0.10.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **六层智能漏斗 · 单场 4 小时无人值守沉淀 100 条爆款 · 零 JSON 残留 · 跨 Agent 可移植**
@@ -132,7 +132,7 @@ python %POOL%\tools\run_daily_v2.py --root <工作根> --account <slug> ^
 | 🧹 **磁盘零 JSON 残留** | 每词入库后运行目录整段删除，数据唯一落点是 SQLite；入库失败才保留现场 |
 | 🛑 **达标即停硬保证** | 启动时 + 每词开抓前双重复查配额，一满立即停 |
 | 📊 **当日采集报告** | 逐词统计 / 命中明细（评分·赞回·摘录）/ 库内累计 / 耗时 / 停止原因 |
-| 🖥️ **弹窗采集模式** | 扫码重登后新会话绑定有头指纹，`--show-browser` 一键切换可见浏览器采集 |
+| 🖥️ **默认有头采集** | CDP 会话默认有头（弹窗可见浏览器），重登后绑定指纹防空响应；后台无痕需显式 `--headless` |
 
 ---
 
