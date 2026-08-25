@@ -164,8 +164,8 @@ def main():
     ap.add_argument("--root", required=True)
     ap.add_argument("--account", default="pool")
     ap.add_argument("--keywords", required=True, help="关键词，分号分隔；实时 MediaCrawler 采集+筛选为主路径")
-    ap.add_argument("--preset", default="safe", choices=["safe", "fast"],
-                    help="采集档位：safe=慢档(并发1/延时3-8s，最稳)，fast=快档(并发3/延时1-3s，提速但风控面大)。默认 safe。")
+    ap.add_argument("--preset", default="safe", choices=["safe", "ultra", "fast"],
+                    help="采集档位：safe=慢档(并发1/延时6-15s，稳)，ultra=超稳档(并发1/延时12-28s+词间长休息，风控期/长跑用)，fast=快档(并发3/延时2-6s，提速但风控面大)。默认 safe。")
     ap.add_argument("--per-keyword", type=int, default=10,
                     help="每关键词最多采样视频数（达标5条无需30；改小加快）")
     ap.add_argument("--comments-count", type=int, default=30,
@@ -177,6 +177,8 @@ def main():
     ap.add_argument("--sleep-min", type=float, default=3)
     ap.add_argument("--sleep-max", type=float, default=3)
     ap.add_argument("--retry-fail", type=int, default=2)
+    ap.add_argument("--kw-gap", dest="kw_gap", type=float, default=90,
+                    help="关键词轮次之间的休息秒数（加大采集间隔、降风控面；0=关闭。ultra 档默认 180）")
     ap.add_argument("--max-min", type=float, default=45)
     ap.add_argument("--min-likes", type=int, default=1000)
     ap.add_argument("--min-replies", type=int, default=50)
@@ -361,11 +363,15 @@ def _run_realtime(conn, a):
     t0 = time.time()
     rows = []
     skip_file = None
-    for kw in keyword_list:
+    for i, kw in enumerate(keyword_list, 1):
         # 达标即停（硬保证）：每个关键词开抓前复查当日配额
         if len(_today_ids(conn)) >= a.quota:
             print("[达标即停] 今日配额已满，无需继续采集，直接停止")
             break
+        # 词间休息（加大采集间隔、降风控面）：仅在本词之后还有词要抓且配额未满时休息
+        if i > 1 and a.kw_gap and a.kw_gap > 0:
+            print(f"[词间休息] {a.kw_gap:.0f}s 后继续下一关键词（--kw-gap 可调）")
+            time.sleep(a.kw_gap)
         # 已采视频跳过：每词开抓前重新导出（上一词入库后集合会变大）
         skip_file = _export_skip_file(conn, a.root, a.account)
         if skip_file:

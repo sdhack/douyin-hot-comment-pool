@@ -1,6 +1,6 @@
 ---
 name: "douyin-hot-comment-pool"
-version: "0.9.7"
+version: "0.9.8"
 description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、已采视频自动跳过重复抓取、磁盘零 JSON 残留、每日达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"刷"的场景下，用**广撒网采样 + 三级门槛筛选 + 每日配额达标即停**把随机性摊平，持续沉淀「能改写成爆款文案」的高互动长评论。
 
 ## 核心思路
@@ -33,7 +33,7 @@ python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
 REM 提速用快档：--preset fast（并发3/延时1-3s，风控面更大）。显式 --speed/--sleep-*/--per-keyword 会覆盖 preset
 ```
 
-采集直接依赖 **MediaCrawler**（本机已安装的抓取引擎，`collect_search.py` 内嵌其调度，零外部技能依赖；API 签名直抓，`--headless` 默认避免弹窗）。**首次需扫码登录一次**，之后复用登录态缓存。频率经 `--preset` 控制：默认 `safe`（并发1、延时3-8s）最稳；切换 `--preset fast`（并发3、延时1-3s）提速但风控面更大。显式 `--speed/--sleep-*/--per-keyword` 会覆盖 preset。`--retry-fail` 失败重试。
+采集直接依赖 **MediaCrawler**（本机已安装的抓取引擎，`collect_search.py` 内嵌其调度，零外部技能依赖；API 签名直抓，`--headless` 默认避免弹窗）。**首次需扫码登录一次**，之后复用登录态缓存。频率经 `--preset` 控制：默认 `safe`（并发1、每请求 6-15s 抖动）稳；`ultra` 超稳档（并发1、12-28s＋词间休息 180s）供风控期/长跑用；`fast`（并发3、2-6s）提速但风控面更大。词间另有 `--kw-gap` 休息（safe/fast 默认 90s）。显式 `--speed/--sleep-*/--per-keyword/--kw-gap` 会覆盖 preset。`--retry-fail` 失败重试。
 
 ### 调试：离线筛选（仅排障用）
 
@@ -123,7 +123,7 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 - **达标即停是硬保证**：`run_daily` 在启动时与**每个关键词开抓前**都查 `hits` 表当日（`hit_date=今天`）已入选数，已满 `quota` 立即停止后续采集，不会重复抓/重复筛。
 - **入库即唯一数据落点**：逐词实时幂等写入 `accounts/videos/comments/ancestry/batches`，精选命中写 `hits`；筛选全程在内存完成，运行目录用后即删——工作根下不残留任何采集 JSON（入库失败时保留现场便于排障）。
 - **已采视频跳过**：每词开抓前从库导出「已有评论的视频 ID」（临时 `.hcp-skip-<account>.txt`，用后即删），经 MediaCrawler `MC_SKIP_FILE` 钩子跳过重复视频的评论重抓（视频信息仍入库更新）；空库自动不启用，patch 幂等且 env 未设置时零行为变化，不影响本机其他 MediaCrawler 项目。
-- **合规边界**：只抓公开可浏览评论区、控制频率避免风控。默认 `--preset safe`（并发1、延时3-8s）最稳；`--preset fast`（并发3、延时1-3s）提速但风控面更大，用于正式账号务必谨慎。爆款评论用于**借鉴结构/钩子，重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
+- **合规边界**：只抓公开可浏览评论区、控制频率避免风控。默认 `--preset safe`（并发1、每请求 6-15s 抖动＋词间休息 90s）稳；`ultra` 超稳档（12-28s＋词间 180s）用于风控期；`fast`（并发3、2-6s）提速但风控面更大，正式账号务必谨慎。爆款评论用于**借鉴结构/钩子，重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
 - **运行库**：`filter_pool / aggregate_comments / run_daily / collect_search` 仅用标准库（`collect_search` 另需本机已装的 MediaCrawler），任意 Python3 可跑。
 
 ## 依赖

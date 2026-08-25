@@ -269,8 +269,8 @@ def main():
     ap.add_argument("--root", required=True)
     ap.add_argument("--account", required=True)
     ap.add_argument("--keywords", default="")
-    ap.add_argument("--preset", default="safe", choices=["safe", "fast"],
-                    help="采集档位：safe=慢档(并发1/延时3-8s，最稳)，fast=快档(并发3/延时1-3s，提速但风控面大)。默认 safe。")
+    ap.add_argument("--preset", default="safe", choices=["safe", "ultra", "fast"],
+                    help="采集档位：safe=慢档(并发1/延时6-15s，稳)，ultra=超稳档(并发1/延时12-28s，风控期/长跑用)，fast=快档(并发3/延时2-6s，提速但风控面大)。默认 safe。")
     ap.add_argument("--per-keyword", type=int, default=10,
                     help="每关键词最多采样视频数（达标5条无需30；改小加快）")
     ap.add_argument("--comments-count", type=int, default=30,
@@ -342,7 +342,11 @@ def main():
         r = ensure_mc_sleep_patch(mc_root)
         if r in ("patched", "already"):
             env["MC_SLEEP_SEC"] = str(round(random.uniform(a.sleep_min, a.sleep_max), 2))
-            print(f"[延时补丁] {r}; MC_SLEEP_SEC={env['MC_SLEEP_SEC']}s")
+            # 每请求区间抖动：MC_OPT 层在 get_comments/get_aweme_detail 内按 [MIN,MAX] uniform 取间隔
+            env["MC_SLEEP_MIN"] = str(a.sleep_min)
+            env["MC_SLEEP_MAX"] = str(a.sleep_max)
+            print(f"[延时补丁] {r}; MC_SLEEP_SEC={env['MC_SLEEP_SEC']}s "
+                  f"(每请求抖动 {a.sleep_min}-{a.sleep_max}s)")
         else:
             print(f"[延时补丁] 失败({r})，--sleep-min/--sleep-max 不生效")
     if a.get_comment and a.comments_count != 10:

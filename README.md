@@ -88,6 +88,7 @@
 ```
 
 > 主路径走**实时 MediaCrawler 采集**（API 签名直抓，`--headless` 默认），首次扫码登录一次后复用缓存。离线模式仅用于调试排障。
+> 采集间隔三重防护：每请求区间抖动（safe 档 6-15s）× 词间休息（默认 90s，`--kw-gap` 可调）× 超稳档 `ultra`（12-28s＋词间 180s，风控期/长跑用）。
 
 ---
 
@@ -172,7 +173,7 @@ python sqlite\db.py --init     REM 首次建库（库文件不入版本库，ini
 
 ```bat
 set POOL=%~dp0
-REM 默认 --preset safe=慢档（并发1/延时3-8s，最稳）；要提速换 --preset fast（并发3/延时1-3s，风控面更大）
+REM 默认 --preset safe=慢档（并发1/每请求6-15s抖动+词间休息90s）；要提速换 fast，风控期用 ultra（12-28s+词间180s）
 python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
   --keywords "养生;智商税;避坑;宝妈" --quota 5 --preset safe --retry-fail 2
 REM 显式 --speed/--sleep-*/--per-keyword/--comments-count 会覆盖 preset
@@ -248,7 +249,7 @@ python sqlite\report.py --threads --cid <评论id>  REM 查看某爆款的讨论
 
 ## 🛡️ 合规边界
 
-- 只抓**公开可浏览**的评论区，频率经 `--preset` 控制：默认 `safe`（并发1 + 延时3-8s + 失败重试）最稳；`--preset fast`（并发3 + 延时1-3s）提速但风控暴露面更大，正式账号务必谨慎。
+- 只抓**公开可浏览**的评论区，频率经 `--preset` 控制：默认 `safe`（并发1 + 每请求 6-15s 抖动 + 词间休息 90s + 失败重试）稳；`ultra` 超稳档（12-28s + 词间 180s）用于风控期；`fast`（并发3 + 2-6s）提速但风控暴露面更大，正式账号务必谨慎。
 - 爆款评论用于**借鉴结构 / 钩子、重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
 - 采集数据由数据拥有方自行保管，打包不携带真实数据外发。
 
