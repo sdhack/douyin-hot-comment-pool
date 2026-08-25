@@ -10,10 +10,12 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.9.5-blue)](CHANGELOG.md)
+[![Skill v](https://img.shields.io/badge/Skill-v0.9.13-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **单场实测：4 小时无人值守 · 41 个关键词轮次 · 采样 3.8 万条评论 · 沉淀 100 条爆款命中 · 磁盘零 JSON 残留**
+
+**智能漏斗（v0.9.13）：按赞排序 → 视频 1 万门槛截断 → 已采去重 → 评论热度水位早停 → 三级门槛 → 达标即停**
 
 </div>
 
@@ -56,6 +58,9 @@
 | 🚫 **全量智能去重** | 「同 comment_id 或同文本不重复入选」跨天生效——历史命中永不重记，配额只被真正的新评论消耗 |
 | 🛑 **达标即停硬保证** | 启动时 + 每词开抓前双重复查 `hits` 当日数，配额一满立即停，绝不多抓一轮 |
 | 📊 **当日采集报告** | 运行结束自动输出：逐词统计 / 当日命中明细（评分·赞回·摘录）/ 库内累计 / 耗时 / 停止原因 |
+| 🎯 **视频级 1 万门槛** | 点赞低于 1 万的视频直接跳过评论抓取（实测零产出）；二次遇到若点赞已涨过门槛自动恢复抓取 |
+| 🔥 **评论热度水位早停** | 页内最高赞<1000 且最高回复<50 即停止该视频翻页——智能排序下页码越深越冷，冷尾请求全省 |
+| 🏁 **按赞止停** | `--stop-at-like-floor`：按赞降序抓到首个低于门槛的视频即结束本词，替代固定条数——大词自动多抓、小词自动早收 |
 
 ---
 
@@ -69,6 +74,7 @@
                                     │  ▶ 逐关键词循环：
                                     ▼
                     ┌─────────────────────────────────────────┐
+                    │ ⓪ 视频过滤：<1万赞跳过·已采跳过·按赞止停到低于门槛即收│
                     │ ① 实时入库 SQLite（loader 幂等导入）     │
                     │ ② 内存聚合(每视频按赞 top-N，不落 JSON)  │
                     │ ③ 三级门槛筛选：高互动→字数→可成文        │
@@ -187,6 +193,14 @@ python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
   --per-keyword 20 --comments-count 40 --sleep-min 2 --sleep-max 4
 ```
 
+首挖新词的推荐形态——**按赞止停**：按赞降序抓到首个低于 1 万赞的视频即结束本词，不再固定条数
+（大词自动多抓、小词自动早收；扫码重登后首次请加 `--show-browser`）：
+
+```bat
+python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
+  --keywords "新词甲;新词乙" --quota 5 --preset ultra --stop-at-like-floor --show-browser
+```
+
 ### 2️⃣ 只用已有的评论数据跑通筛选（离线调试）
 
 ```bat
@@ -263,7 +277,7 @@ python tests\sqlite_selfcheck.py    REM SQLite 全链路端到端自测（9 项�
 python tests\ingest_selfcheck.py    REM 实时入库管线自测（8 项：入库/门槛/配额/清理/跨天去重）
 ```
 
-`ingest_selfcheck` 覆盖：内存 top-N 聚合排序回归 → 实时入库 → 三级门槛命中 → 配额封顶 → 运行目录清理 → 空结果清理 → **跨天去重**。全部离线可跑，不依赖网络 / MediaCrawler。✓（v0.9.1 全通过）
+`ingest_selfcheck` 覆盖：内存 top-N 聚合排序回归 → 实时入库 → 三级门槛命中 → 配额封顶 → 运行目录清理 → 空结果清理 → **跨天去重**。全部离线可跑，不依赖网络 / MediaCrawler。✓（v0.9.13 全通过）
 
 ---
 
@@ -276,6 +290,8 @@ douyin-hot-comment-pool/
 ├── README.md                   # 项目说明（本文件）
 ├── CHANGELOG.md                # 版本变更
 ├── SECURITY.md                 # 安全边界与漏洞报告
+├── MAINTENANCE.md              # 维护手册（版本同步 / 编码规范）
+├── agents/openai.yaml          # 列表展示名（含 V 版本号，随发版同步）
 ├── CONTRIBUTING.md             # 贡献指南
 ├── CODE_OF_CONDUCT.md          # 行为准则
 ├── LICENSE                     # MIT
@@ -287,7 +303,7 @@ douyin-hot-comment-pool/
 │   ├── collect_search.py       # 关键词广撒网采集（直接调度本机 MediaCrawler）
 │   ├── filter_pool.py          # 三级门槛筛选（可离线单独用）
 │   ├── aggregate_comments.py   # 评论聚合（内存 aggregate_paths 主路径 + CLI 调试落盘）
-│   └── _presets.py             # --preset 采集档位预设（safe/fast，供 run_daily 与 collect_search 共享）
+│   └── _presets.py             # --preset 采集档位预设（safe/ultra/fast，供 run_daily 与 collect_search 共享）
 ├── sqlite/
 │   ├── db.py                   # 建库建表（6表+3视图），一键 init
 │   ├── loader.py               # 幂等导入搜索批次 → 库（支持显式 batch_id 逐词记账）
