@@ -9,6 +9,15 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.9.9] - 2026-08-25
+
+### Fixed
+- **无头会话指纹问题（搜索连续空结果根因）**：扫码重登后的新会话绑定有头浏览器指纹，无头启动被抖音判未登录（status 2483、pong 假阴性）。新增 `collect_search --no-headless` 与 `run_daily --show-browser` 弹窗采集支持；SKILL.md 补充「重登后首次采集须 --show-browser」约束。
+- **延时补丁 no-var 误报**：并行引入的 jitter-v2 把 `CRAWLER_MAX_SLEEP_SEC` 动态化（标记在 config/__init__.py），旧补丁按静态行匹配报 `no-var`。现识别 jitter-v2 标记直接视为 already（MC_SLEEP_MIN/MAX 已被每请求消费），兼容两种形态。
+
+### Added
+- **搜索空结果诊断**：幂等 patch 给 core.py 空结果日志附 `status_code|status_msg`（2483=未登录/会话失效，其他=风控或无匹配）；run_daily 空结果提示同步给出 `--show-browser` / ultra 冷却建议。
+
 ## [0.9.8] - 2026-08-25
 
 ### Changed

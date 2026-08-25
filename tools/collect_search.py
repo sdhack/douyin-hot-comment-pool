@@ -96,10 +96,31 @@ def _patch_verify(p, marker, pat, new):
 
 
 def ensure_mc_sleep_patch(mc_root):
-    p = os.path.join(mc_root, "config", "base_config.py")
+    """确保延时机制就绪。兼容两种形态：
+    1) jitter-v2 动态形态（base_config 含 MC_SLEEP_JITTER_V2 标记，CRAWLER_MAX_SLEEP_SEC 经
+       config.__getattr__ 每次访问按 MC_SLEEP_MIN/MAX 抖动）→ 直接视为 already；
+    2) 旧静态形态（CRAWLER_MAX_SLEEP_SEC = <数字>）→ 补丁为读 env 后返回。
+    """
+    cfg_dir = os.path.join(mc_root, "config")
+    p = os.path.join(cfg_dir, "base_config.py")
     if not os.path.isfile(p):
         return None
+    # jitter-v2 标记可能位于 base_config.py 或同目录 __init__.py（package __getattr__ 动态化）
+    for f in ("base_config.py", "__init__.py"):
+        fp = os.path.join(cfg_dir, f)
+        if os.path.isfile(fp):
+            try:
+                if "MC_SLEEP_JITTER_V2" in open(fp, encoding="utf-8-sig").read():
+                    return "already"   # 动态形态：MC_SLEEP_MIN/MAX 已被每请求消费
+            except OSError:
+                pass
+    try:
+        src = open(p, encoding="utf-8-sig").read()
+    except OSError:
+        return None
     pat = r"(?m)^CRAWLER_MAX_SLEEP_SEC[ \t]*=[ \t]*\d+(?:\.\d+)?[ \t]*(?:#.*)?$"
+    if not re.search(pat, src):
+        return "no-var"
     return _patch_verify(p, "MC_SLEEP_SEC", pat,
                          'CRAWLER_MAX_SLEEP_SEC = float(os.getenv("MC_SLEEP_SEC", "10"))')
 
@@ -171,6 +192,40 @@ def ensure_mc_skip_patch(mc_root):
         open(p, "w", encoding="utf-8", newline="").write(patched)
         now = open(p, encoding="utf-8").read()
         return "patched" if ("MC_SKIP_FILE" in now and "skipped_known_aweme" in now) else "verify-failed"
+    except Exception:
+        return None
+
+
+def ensure_mc_search_diag_patch(mc_root):
+    """给 douyin/core.py 的搜索空结果日志附加 status_code/status_msg（幂等，纯日志增强）。
+
+    便于区分空结果根因：2483=未登录/会话失效（扫码重登后需 --no-headless 有头采集）、
+    其他=风控或无匹配。返回 patched / already / no-anchor / verify-failed / None。
+    """
+    p = os.path.join(mc_root, "media_platform", "douyin", "core.py")
+    if not os.path.isfile(p):
+        return None
+    try:
+        src = open(p, encoding="utf-8-sig").read()
+    except OSError:
+        return None
+    if "is empty(status=" in src:
+        return "already"
+    try:
+        bak = p + ".diag.bak"
+        if not os.path.isfile(bak):
+            open(bak, "w", encoding="utf-8").write(src)
+        anchor = 'page: {page} is empty,{posts_res.get(\'data\')}`"'
+        new = ('page: {page} is empty(status={posts_res.get(\'status_code\')}|'
+               '{posts_res.get(\'status_msg\')}) data:{posts_res.get(\'data\')}`"')
+        if anchor not in src:
+            return "no-anchor"
+        patched = src.replace(anchor, new, 1)
+        if patched == src:
+            return "verify-failed"
+        open(p, "w", encoding="utf-8", newline="").write(patched)
+        now = open(p, encoding="utf-8").read()
+        return "patched" if "is empty(status=" in now else "verify-failed"
     except Exception:
         return None
 
@@ -285,7 +340,8 @@ def main():
     ap.add_argument("--cookies", default=None)
     ap.add_argument("--skip-file", dest="skip_file", default=None,
                     help="已采视频ID列表文件（每行一个 aweme_id）；命中的视频跳过评论重抓，降重复率与风控面")
-    ap.add_argument("--headless", action="store_true", default=True)
+    ap.add_argument("--headless", default=True, action=argparse.BooleanOptionalAction,
+                    help="无头模式（默认开）。扫码重登后新会话绑定有头指纹时需 --no-headless 弹窗采集")
     ap.add_argument("--get-comment", dest="get_comment", action="store_true", default=True)
     ap.add_argument("--no-comment", dest="get_comment", action="store_false")
     ap.add_argument("--dry-run", action="store_true")
@@ -356,6 +412,10 @@ def main():
         else:
             env["MC_COMMENTS_COUNT"] = str(a.comments_count)
             print(f"[评论数补丁] {r}; MC_COMMENTS_COUNT={a.comments_count}")
+
+    r_diag = ensure_mc_search_diag_patch(mc_root)
+    if r_diag == "patched":
+        print("[诊断补丁] 搜索空结果日志已附 status_code/msg（区分未登录2483/风控）")
 
     products, fail = [], 0
     skip_state = None  # (patch_result, 是否给子进程传了 MC_SKIP_FILE)

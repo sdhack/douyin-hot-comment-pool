@@ -177,6 +177,8 @@ def main():
     ap.add_argument("--sleep-min", type=float, default=3)
     ap.add_argument("--sleep-max", type=float, default=3)
     ap.add_argument("--retry-fail", type=int, default=2)
+    ap.add_argument("--show-browser", action="store_true",
+                    help="弹出浏览器窗口采集（等价 --no-headless）；扫码重登后首次采集建议开启")
     ap.add_argument("--kw-gap", dest="kw_gap", type=float, default=90,
                     help="关键词轮次之间的休息秒数（加大采集间隔、降风控面；0=关闭。ultra 档默认 180）")
     ap.add_argument("--max-min", type=float, default=45)
@@ -218,6 +220,8 @@ def _crawl_keyword(a, kw, skip_file=None):
         sub_args += ["--cookies", a.cookies]
     if skip_file:
         sub_args += ["--skip-file", skip_file]
+    if getattr(a, "show_browser", False):
+        sub_args += ["--no-headless"]
     r = subprocess.run([sys.executable, os.path.join(TOOLS, "collect_search.py")] + sub_args)
     run_root = None
     pointer = os.path.join(a.root, f".douyin-crawl-current-{a.account}.json")
@@ -263,7 +267,8 @@ def _ingest_keyword_run(conn, a, kw, run_root):
     comm_fps = sorted(glob.glob(os.path.join(crawl_dir, "**", "search_comments_*.jsonl"),
                                 recursive=True))
     if not comm_fps:
-        row["note"] = "无 search_comments_*.jsonl（登录态/风控/无匹配）"
+        row["note"] = ("无评论产物；若刚扫码重登过请加 --show-browser（新会话绑定有头指纹），"
+                        "或稍后用 --preset ultra 冷却再试")
         print(f"  [daily] {row['note']}")
 
     ingested = False
