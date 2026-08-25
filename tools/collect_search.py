@@ -297,6 +297,43 @@ def ensure_mc_video_gate_patch(mc_root, min_likes=10000):
         return None
 
 
+def ensure_mc_sort_patch(mc_root):
+    """让搜索接口支持排序选择（幂等，带 .bak 回滚）。
+
+    env MC_SEARCH_SORT_TYPE: 0=综合(默认) 1=最多点赞 2=最新发布。
+    实测 MOST_LIKE 返回严格赞降序；默认不改变行为（综合排序保持覆盖多样性）。
+    返回 patched/already/no-anchor/verify-failed/None。
+    """
+    p = os.path.join(mc_root, "media_platform", "douyin", "core.py")
+    if not os.path.isfile(p):
+        return None
+    try:
+        src = open(p, encoding="utf-8-sig").read()
+    except OSError:
+        return None
+    if "MC_SEARCH_SORT_TYPE" in src:
+        return "already"
+    try:
+        bak = p + ".sort.bak"
+        if not os.path.isfile(bak):
+            open(bak, "w", encoding="utf-8").write(src)
+        imp_anchor = "from .field import PublishTimeType"
+        imp_new = "from .field import PublishTimeType, SearchSortType"
+        call_anchor = "                        publish_time=PublishTimeType(config.PUBLISH_TIME_TYPE),"
+        call_new = ("                        publish_time=PublishTimeType(config.PUBLISH_TIME_TYPE),\n"
+                    '                        sort_type=SearchSortType(int(os.getenv("MC_SEARCH_SORT_TYPE", "0"))),')
+        if imp_anchor not in src or call_anchor not in src:
+            return "no-anchor"
+        patched = src.replace(imp_anchor, imp_new, 1).replace(call_anchor, call_new, 1)
+        if patched == src:
+            return "verify-failed"
+        open(p, "w", encoding="utf-8", newline="").write(patched)
+        now = open(p, encoding="utf-8").read()
+        return "patched" if "MC_SEARCH_SORT_TYPE" in now else "verify-failed"
+    except Exception:
+        return None
+
+
 def ensure_mc_heat_patch(mc_root):
     """给 client.py 评论翻页注入「热度水位早停」（幂等，带 .bak 回滚）。
 
@@ -454,6 +491,8 @@ def main():
     ap.add_argument("--max-min", type=float, default=None, help="单次抓取最大运行分钟数（防子进程挂起）")
     ap.add_argument("--lt", default="qrcode", choices=["qrcode", "cookie", "phone"])
     ap.add_argument("--cookies", default=None)
+    ap.add_argument("--search-sort", dest="search_sort", type=int, default=0, choices=[0, 1, 2],
+                    help="搜索结果排序：0=综合(默认) 1=最多点赞(实测严格赞降序，配合万赞门槛零浪费) 2=最新发布")
     ap.add_argument("--video-min-likes", dest="video_min_likes", type=int, default=10000,
                     help="视频级点赞门槛（硬编码默认1万）：低于此值的视频跳过评论抓取，二次遇到涨过门槛则正常抓取")
     ap.add_argument("--min-likes", type=int, default=1000,
@@ -538,6 +577,15 @@ def main():
     r_diag = ensure_mc_search_diag_patch(mc_root)
     if r_diag == "patched":
         print("[诊断补丁] 搜索空结果日志已附 status_code/msg（区分未登录2483/风控）")
+
+    r_sort = ensure_mc_sort_patch(mc_root)
+    if r_sort in ("patched", "already"):
+        if a.search_sort != 0:
+            env["MC_SEARCH_SORT_TYPE"] = str(a.search_sort)
+            print(f"[搜索排序] {r_sort}; MC_SEARCH_SORT_TYPE={a.search_sort} "
+                  f"({'最多点赞' if a.search_sort == 1 else '最新发布'})")
+    else:
+        print(f"[搜索排序] 补丁失败({r_sort})，固定综合排序")
 
     if a.get_comment:
         r_gate = ensure_mc_video_gate_patch(mc_root, min_likes=a.video_min_likes)

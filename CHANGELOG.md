@@ -9,6 +9,14 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.9.12] - 2026-08-25
+
+### Added
+- **搜索排序可选（`--sort-by-likes`）**：实测搜索接口的「最多点赞」排序真实有效——返回严格赞降序（对比综合排序混有低赞尾部）。开启后配合万赞视频门槛几乎零浪费；默认关闭保持综合排序的内容多样性。实现为幂等 patch 注入 core.py（env `MC_SEARCH_SORT_TYPE`），`collect_search --search-sort {0,1,2}` 同样可用。
+
+### Verified
+- 全链路实战验证（养生/ultra/--sort-by-likes/--show-browser）：搜索排序生效、9 个已采视频去重跳过、2 个低热视频翻页早停（page_max_digg=133/21<门槛）、14 视频/100 评论实时入库后目录清理，零 JSON 残留。
+
 ## [0.9.11] - 2026-08-25
 
 ### Added
