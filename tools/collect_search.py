@@ -230,6 +230,73 @@ def ensure_mc_search_diag_patch(mc_root):
         return None
 
 
+def ensure_mc_video_gate_patch(mc_root, min_likes=10000):
+    """给 douyin/core.py 注入「视频级点赞门槛」（幂等，带 .bak 回滚）。
+
+    规则（用户需求 2026-08-25 硬编码 1 万赞）：
+      - 搜索结果中的视频，statistics.digg_count < MC_VIDEO_MIN_LIKES（默认 10000）→ 跳过评论抓取，
+        仅保留视频信息入库；
+      - 低赞被跳过的视频不进 skip 名单（无评论），**二次抓到时若点赞已涨过门槛则正常抓取**；
+      - 已采过的视频仍受 MC_SKIP_FILE 去重约束。
+    返回 patched/already/no-anchor/verify-failed/None。
+    """
+    p = os.path.join(mc_root, "media_platform", "douyin", "core.py")
+    if not os.path.isfile(p):
+        return None
+    try:
+        src = open(p, encoding="utf-8-sig").read()
+    except OSError:
+        return None
+    if "MC_VIDEO_MIN_LIKES" in src:
+        return "already"
+    try:
+        bak = p + ".gate.bak"
+        if not os.path.isfile(bak):
+            open(bak, "w", encoding="utf-8").write(src)
+
+        # 1) record_aweme 里顺带记录 digg_count（供门槛判断）
+        rec_anchor = ("    def _mc_opt_record_aweme(self, aweme):\n"
+                      "        self._mc_opt_init()\n")
+        rec_insert = rec_anchor + (
+            "        _lk_st = aweme.get('statistics') if isinstance(aweme.get('statistics'), dict) else {}\n"
+            "        _lk_v = _lk_st.get('digg_count', aweme.get('digg_count'))\n"
+            "        try:\n"
+            "            if _lk_v is not None and str(_lk_v).strip() != '':\n"
+            "                _ld = getattr(self, '_mc_opt_liked_counts', None)\n"
+            "                if _ld is None:\n"
+            "                    _ld = {}\n"
+            "                    self._mc_opt_liked_counts = _ld\n"
+            "                _ld[str(aweme.get('aweme_id'))] = int(float(str(_lk_v)))\n"
+            "        except (TypeError, ValueError):\n"
+            "            pass\n")
+
+        # 2) batch_get_note_comments 的 known-skip 之后追加低赞跳过分支
+        known_anchor = ('            if str(aweme_id) in self._mc_opt_known_awemes():\n'
+                        '                self._mc_opt_metric("skipped_known_awemes")\n'
+                        '                utils.logger.info(f"[MC_OPT] skipped_known_aweme aweme_id:{aweme_id}")\n'
+                        "                continue\n")
+        gate_insert = known_anchor + (
+            "            _vml = int(os.getenv('MC_VIDEO_MIN_LIKES', '" + str(int(min_likes)) + "') or 0)\n"
+            "            if _vml > 0:\n"
+            "                _lv = getattr(self, '_mc_opt_liked_counts', {}).get(str(aweme_id))\n"
+            "                if _lv is not None and _lv < _vml:\n"
+            '                    self._mc_opt_metric("skipped_low_like_videos")\n'
+            '                    utils.logger.info(f"[MC_OPT] skipped_low_like_video aweme_id:{aweme_id} "\n'
+            '                                      f"liked={_lv} floor={_vml}")\n'
+            "                    continue\n")
+        if rec_anchor not in src or known_anchor not in src:
+            return "no-anchor"
+        patched = src.replace(rec_anchor, rec_insert, 1)
+        patched = patched.replace(known_anchor, gate_insert, 1)
+        if patched == src:
+            return "verify-failed"
+        open(p, "w", encoding="utf-8", newline="").write(patched)
+        now = open(p, encoding="utf-8").read()
+        return "patched" if "MC_VIDEO_MIN_LIKES" in now else "verify-failed"
+    except Exception:
+        return None
+
+
 def ensure_mc_heat_patch(mc_root):
     """给 client.py 评论翻页注入「热度水位早停」（幂等，带 .bak 回滚）。
 
@@ -387,6 +454,8 @@ def main():
     ap.add_argument("--max-min", type=float, default=None, help="单次抓取最大运行分钟数（防子进程挂起）")
     ap.add_argument("--lt", default="qrcode", choices=["qrcode", "cookie", "phone"])
     ap.add_argument("--cookies", default=None)
+    ap.add_argument("--video-min-likes", dest="video_min_likes", type=int, default=10000,
+                    help="视频级点赞门槛（硬编码默认1万）：低于此值的视频跳过评论抓取，二次遇到涨过门槛则正常抓取")
     ap.add_argument("--min-likes", type=int, default=1000,
                     help="评论翻页热度水位：页内最高赞低于此值且最高回复低于 --min-replies 时提前停止翻页")
     ap.add_argument("--min-replies", type=int, default=50,
@@ -469,6 +538,14 @@ def main():
     r_diag = ensure_mc_search_diag_patch(mc_root)
     if r_diag == "patched":
         print("[诊断补丁] 搜索空结果日志已附 status_code/msg（区分未登录2483/风控）")
+
+    if a.get_comment:
+        r_gate = ensure_mc_video_gate_patch(mc_root, min_likes=a.video_min_likes)
+        if r_gate in ("patched", "already"):
+            env["MC_VIDEO_MIN_LIKES"] = str(a.video_min_likes)
+            print(f"[视频门槛] {r_gate}; 点赞<{a.video_min_likes} 跳过评论抓取（二次遇涨过门槛正常抓）")
+        else:
+            print(f"[视频门槛] 补丁失败({r_gate})，不做视频级过滤")
 
     if a.get_comment and (a.min_likes > 0 or a.min_replies > 0):
         r_heat = ensure_mc_heat_patch(mc_root)
