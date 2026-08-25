@@ -1,0 +1,7 @@
+interface:
+  display_name: "抖音爆款评论池"
+  short_description: "采集并筛选可改写为文案的高互动抖音长评论"
+  default_prompt: "使用 $douyin-hot-comment-pool 挖掘一批可用于文案创作的抖音高互动长评论。"
+
+policy:
+  allow_implicit_invocation: true
