@@ -202,8 +202,11 @@ def main():
     return _run_realtime(conn, a)
 
 
-def _crawl_keyword(a, kw):
-    """调 collect_search 采集单个关键词。返回 (returncode, run_root|None)。"""
+def _crawl_keyword(a, kw, skip_file=None):
+    """调 collect_search 采集单个关键词。返回 (returncode, run_root|None)。
+
+    skip_file：已采视频ID列表文件，命中的视频在评论阶段被跳过（降重复抓取）。
+    """
     sub_args = ["--root", a.root, "--account", a.account, "--keywords", kw,
                 "--per-keyword", str(a.per_keyword), "--comments-count", str(a.comments_count),
                 "--speed", a.speed, "--lt", a.lt, "--sleep-min", str(a.sleep_min),
@@ -211,6 +214,8 @@ def _crawl_keyword(a, kw):
                 "--max-min", str(a.max_min)]
     if a.cookies:
         sub_args += ["--cookies", a.cookies]
+    if skip_file:
+        sub_args += ["--skip-file", skip_file]
     r = subprocess.run([sys.executable, os.path.join(TOOLS, "collect_search.py")] + sub_args)
     run_root = None
     pointer = os.path.join(a.root, f".douyin-crawl-current-{a.account}.json")
@@ -220,6 +225,28 @@ def _crawl_keyword(a, kw):
         except Exception:
             pass
     return r.returncode, run_root
+
+
+def _export_skip_file(conn, root, account):
+    """把库内已采过评论的视频 ID 导出到临时文件（供采集进程跳过重复抓取）。
+
+    判定口径：该视频已有 ≥1 条评论入库（说明评论抓取完成过）。
+    文件落在运行指针同目录，返回路径；库为空时返回 None（不启用跳过）。
+    """
+    try:
+        ids = [r["aweme_id"] for r in conn.execute(
+            "SELECT DISTINCT aweme_id AS aweme_id FROM comments WHERE aweme_id != ''")]
+    except Exception as e:
+        print(f"  [daily] 已采视频导出失败（本次不启用跳过）: {e}")
+        return None
+    if not ids:
+        return None
+    p = os.path.join(root, f".hcp-skip-{account}.txt")
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(ids))
+    os.replace(tmp, p)
+    return p
 
 
 def _ingest_keyword_run(conn, a, kw, run_root):
@@ -333,13 +360,19 @@ def _run_realtime(conn, a):
 
     t0 = time.time()
     rows = []
+    skip_file = None
     for kw in keyword_list:
         # 达标即停（硬保证）：每个关键词开抓前复查当日配额
         if len(_today_ids(conn)) >= a.quota:
             print("[达标即停] 今日配额已满，无需继续采集，直接停止")
             break
+        # 已采视频跳过：每词开抓前重新导出（上一词入库后集合会变大）
+        skip_file = _export_skip_file(conn, a.root, a.account)
+        if skip_file:
+            n_known = sum(1 for _ in open(skip_file, encoding="utf-8"))
+            print(f"[daily] 已采视频 {n_known} 个启用跳过（重复视频不重抓评论）")
         print(f"[daily] 采集关键词「{kw}」")
-        rc, run_root = _crawl_keyword(a, kw)
+        rc, run_root = _crawl_keyword(a, kw, skip_file)
         if rc != 0:
             print(f"  [daily] 关键词「{kw}」采集退出码 {rc}；若有部分数据仍会实时入库")
         if not run_root or not os.path.isdir(run_root):
@@ -349,12 +382,13 @@ def _run_realtime(conn, a):
             continue
         rows.append(_ingest_keyword_run(conn, a, kw, run_root))
 
-    # 收尾：删运行指针（数据全在 SQLite，控制文件也不留 JSON）
+    # 收尾：删运行指针与已采跳过文件（数据全在 SQLite，控制文件也不留）
     pointer = os.path.join(a.root, f".douyin-crawl-current-{a.account}.json")
-    try:
-        os.remove(pointer)
-    except OSError:
-        pass
+    for leftover in (pointer, os.path.join(a.root, f".hcp-skip-{a.account}.txt")):
+        try:
+            os.remove(leftover)
+        except OSError:
+            pass
 
     _print_report(conn, a, rows, t0)
     return 0

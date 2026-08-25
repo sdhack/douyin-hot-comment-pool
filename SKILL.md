@@ -1,12 +1,7 @@
 ---
 name: "douyin-hot-comment-pool"
-version: "0.9.6"
-description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、磁盘零 JSON 残留、每日达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"
----
-
-# 抖音爆款评论池（Douyin Hot Comment Pool）
-
-在"爆款评论出现在哪并不固定、只能靠刷"的场景下，用**广撒网采样 + 三级门槛筛选 + 每日配额达标即停**把随机性摊平，持续沉淀「能改写成爆款文案」的高互动长评论。
+version: "0.9.7"
+description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、已采视频自动跳过重复抓取、磁盘零 JSON 残留、每日达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"刷"的场景下，用**广撒网采样 + 三级门槛筛选 + 每日配额达标即停**把随机性摊平，持续沉淀「能改写成爆款文案」的高互动长评论。
 
 ## 核心思路
 
@@ -24,7 +19,7 @@ description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（
 
 ## 工作流
 
-主路径是**实时 MediaCrawler 采集**（API 签名直抓，非浏览器 DOM 模拟）：**逐关键词** 采集 → 立即实时导入 SQLite → 内存聚合+三级门槛筛选 → 写入命中（配额封顶）→ 清理采集目录（磁盘零 JSON 残留）→ 下一词开抓前复查配额达标即停 → 末尾输出当日报告。离线只用于调试，不作日常入口。
+主路径是**实时 MediaCrawler 采集**（API 签名直抓，非浏览器 DOM 模拟）：**逐关键词** 采集（开抓前从库导出已采视频 ID，命中者跳过评论重抓——语义相近词命中同一视频时不再浪费抓取）→ 立即实时导入 SQLite → 内存聚合+三级门槛筛选 → 写入命中（配额封顶）→ 清理采集目录（磁盘零 JSON 残留）→ 下一词开抓前复查配额达标即停 → 末尾输出当日报告。离线只用于调试，不作日常入口。
 
 ### 主路径：实时 MediaCrawler 采集（日常用）
 
@@ -103,9 +98,7 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 |---|---|
 | `run_daily.py` | `--root --account --keywords(必填,分号分隔) --quota --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --min-* [`--offline-source` 仅调试]。显式 `--speed/--sleep-*` 覆盖 preset |
 | `run_daily_v2.py` | 两段式提速调度器：`--root --account --keywords(分号分隔) --quota --preset --per-keyword --comments-count [--skip-search 断点续跑]`。合并搜索→本地按赞排序去重→仅对 Top 高赞视频定向深挖（评论深度自适应 100~250 条/视频） |
-| `collect_search.py` | `--root --account --keywords(分号分隔) --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --lt [--cookies] [--headless] [--raw-crawler]` |
-| `filter_pool.py` | `--in --out --min-likes --min-replies --min-len --min-score --max-n` |
-| `aggregate_comments.py` | 内存聚合入口 `aggregate_paths(fps, max_n)`（主路径）；CLI `--in <jsonl或目录> --out --max` 仅调试落盘 |
+| `collect_search.py` | `--root --account --keywords(分号分隔) --preset(safe默认|fast) --per-keyword(10) --comments-count(30) --speed --sleep-min/--sleep-max --retry-fail --max-min --lt [--cookies] [--skip-file 已采视频ID列表] [--headless] [--raw-crawler]` || 内存聚合入口 `aggregate_paths(fps, max_n)`（主路径）；CLI `--in <jsonl或目录> --out --max` 仅调试落盘 |
 
 ## 输出结构
 
@@ -129,6 +122,7 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 
 - **达标即停是硬保证**：`run_daily` 在启动时与**每个关键词开抓前**都查 `hits` 表当日（`hit_date=今天`）已入选数，已满 `quota` 立即停止后续采集，不会重复抓/重复筛。
 - **入库即唯一数据落点**：逐词实时幂等写入 `accounts/videos/comments/ancestry/batches`，精选命中写 `hits`；筛选全程在内存完成，运行目录用后即删——工作根下不残留任何采集 JSON（入库失败时保留现场便于排障）。
+- **已采视频跳过**：每词开抓前从库导出「已有评论的视频 ID」（临时 `.hcp-skip-<account>.txt`，用后即删），经 MediaCrawler `MC_SKIP_FILE` 钩子跳过重复视频的评论重抓（视频信息仍入库更新）；空库自动不启用，patch 幂等且 env 未设置时零行为变化，不影响本机其他 MediaCrawler 项目。
 - **合规边界**：只抓公开可浏览评论区、控制频率避免风控。默认 `--preset safe`（并发1、延时3-8s）最稳；`--preset fast`（并发3、延时1-3s）提速但风控面更大，用于正式账号务必谨慎。爆款评论用于**借鉴结构/钩子，重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
 - **运行库**：`filter_pool / aggregate_comments / run_daily / collect_search` 仅用标准库（`collect_search` 另需本机已装的 MediaCrawler），任意 Python3 可跑。
 

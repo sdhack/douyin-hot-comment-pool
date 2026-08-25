@@ -113,6 +113,68 @@ def ensure_mc_comments_patch(mc_root):
                          'CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = int(float(os.getenv("MC_COMMENTS_COUNT", "10")))')
 
 
+def ensure_mc_skip_patch(mc_root):
+    """给 douyin/core.py 注入「已采视频跳过评论」钩子（幂等，带 .bak 回滚）。
+
+    在既有 MC_OPT 定制层上扩展两处（env MC_SKIP_FILE 未设置时零行为变化，不影响其他项目）：
+      1) 新增方法 _mc_opt_known_awemes：懒加载 MC_SKIP_FILE（每行一个 aweme_id）为集合并缓存；
+      2) batch_get_note_comments 循环内：aweme_id 命中集合则计指标 skipped_known_awemes 并跳过评论抓取。
+    返回 patched / already / no-anchor / verify-failed / None(文件缺失)。
+    """
+    p = os.path.join(mc_root, "media_platform", "douyin", "core.py")
+    if not os.path.isfile(p):
+        return None
+    try:
+        src = open(p, encoding="utf-8-sig").read()
+    except OSError:
+        return None
+    if "MC_SKIP_FILE" in src:
+        return "already"
+    try:
+        bak = p + ".bak"
+        if not os.path.isfile(bak):
+            open(bak, "w", encoding="utf-8").write(src)
+
+        method_anchor = "    def _mc_opt_record_aweme(self, aweme):"
+        method_code = (
+            '    def _mc_opt_known_awemes(self):\n'
+            '        """已采视频ID集合（env MC_SKIP_FILE 指定文件，每行一个 aweme_id；未设置则为空）。"""\n'
+            '        self._mc_opt_init()\n'
+            '        cached = getattr(self, "_mc_opt_skip_cache", None)\n'
+            '        path = os.getenv("MC_SKIP_FILE", "")\n'
+            '        if cached is None or cached[0] != path:\n'
+            '            ids = set()\n'
+            '            if path and os.path.isfile(path):\n'
+            '                try:\n'
+            '                    with open(path, encoding="utf-8") as f:\n'
+            '                        ids = {line.strip() for line in f if line.strip()}\n'
+            '                except OSError:\n'
+            '                    pass\n'
+            '            cached = (path, ids)\n'
+            '            self._mc_opt_skip_cache = cached\n'
+            '        return cached[1]\n\n'
+        )
+        guard_anchor = ("            if isinstance(candidate, dict):\n"
+                        "                self._mc_opt_record_aweme(candidate)\n")
+        guard_code = guard_anchor + (
+            "            if str(aweme_id) in self._mc_opt_known_awemes():\n"
+            '                self._mc_opt_metric("skipped_known_awemes")\n'
+            '                utils.logger.info(f"[MC_OPT] skipped_known_aweme aweme_id:{aweme_id}")\n'
+            "                continue\n"
+        )
+        if method_anchor not in src or guard_anchor not in src:
+            return "no-anchor"
+        patched = src.replace(method_anchor, method_code + method_anchor, 1)
+        patched = patched.replace(guard_anchor, guard_code, 1)
+        if patched == src:
+            return "verify-failed"
+        open(p, "w", encoding="utf-8", newline="").write(patched)
+        now = open(p, encoding="utf-8").read()
+        return "patched" if ("MC_SKIP_FILE" in now and "skipped_known_aweme" in now) else "verify-failed"
+    except Exception:
+        return None
+
+
 def _run_marker(path):
     return os.path.join(path, ".douyin-crawl-run.json")
 
@@ -221,6 +283,8 @@ def main():
     ap.add_argument("--max-min", type=float, default=None, help="单次抓取最大运行分钟数（防子进程挂起）")
     ap.add_argument("--lt", default="qrcode", choices=["qrcode", "cookie", "phone"])
     ap.add_argument("--cookies", default=None)
+    ap.add_argument("--skip-file", dest="skip_file", default=None,
+                    help="已采视频ID列表文件（每行一个 aweme_id）；命中的视频跳过评论重抓，降重复率与风控面")
     ap.add_argument("--headless", action="store_true", default=True)
     ap.add_argument("--get-comment", dest="get_comment", action="store_true", default=True)
     ap.add_argument("--no-comment", dest="get_comment", action="store_false")
@@ -290,6 +354,15 @@ def main():
             print(f"[评论数补丁] {r}; MC_COMMENTS_COUNT={a.comments_count}")
 
     products, fail = [], 0
+    skip_state = None  # (patch_result, 是否给子进程传了 MC_SKIP_FILE)
+    if a.get_comment and a.skip_file:
+        r = ensure_mc_skip_patch(mc_root)
+        skip_state = (r, r in ("patched", "already"))
+        if skip_state[1]:
+            env["MC_SKIP_FILE"] = os.path.abspath(a.skip_file)
+            print(f"[已采跳过补丁] {r}; MC_SKIP_FILE={env['MC_SKIP_FILE']}")
+        else:
+            print(f"[已采跳过补丁] 失败({r})，本批不跳过已采视频（不影响采集，仅重复抓取）")
     for i, kw in enumerate(keywords, 1):
         print("=" * 60)
         print(f"[collect] 采集 [{i}/{len(keywords)}] 关键词「{kw}」")

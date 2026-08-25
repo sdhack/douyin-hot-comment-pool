@@ -1,6 +1,6 @@
 {
   "name": "douyin-hot-comment-pool",
-  "version": "0.9.2",
+  "version": "0.9.7",
   "owner": "Gao Ming",
   "updated_at": "2026-08-25",
   "status": "active",
@@ -9,7 +9,7 @@
   "context_budget_tier": "production",
   "review_cadence": "monthly",
   "skill_archetype": "automation-pipeline",
-  "description": "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、磁盘零 JSON 残留、每日达标即停并输出当日报告。",
+  "description": "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、已采视频自动跳过重复抓取、磁盘零 JSON 残留、每日达标即停并输出当日报告。",
   "job_to_be_done": "猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材",
   "default_prompt": "Use $douyin-hot-comment-pool when you need to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。",
   "activation_mode": "manual",
