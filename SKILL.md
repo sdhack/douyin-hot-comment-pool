@@ -27,10 +27,10 @@ description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（
 
 ```bat
 set POOL=%USERPROFILE%\.trae-cn\skills\douyin-hot-comment-pool
-REM 实时采集 + 筛选 + 沉淀 + 达标即停（一键；默认 --preset safe=慢档：并发1/延时3-8s，最稳）
+REM 实时采集 + 筛选 + 沉淀 + 达标即停（一键；默认 --preset safe=慢档：并发1/每请求6-15s抖动，稳）
 python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
   --keywords "养生;智商税;避坑;宝妈" --quota 5 --preset safe
-REM 提速用快档：--preset fast（并发3/延时1-3s，风控面更大）。显式 --speed/--sleep-*/--per-keyword 会覆盖 preset
+REM 提速用快档：--preset fast（并发3/延时2-6s，风控面更大）；风控期用 ultra 超稳档（12-28s+词间180s）。显式 --speed/--sleep-*/--per-keyword 会覆盖 preset
 ```
 
 采集直接依赖 **MediaCrawler**（本机已安装的抓取引擎，`collect_search.py` 内嵌其调度，零外部技能依赖；API 签名直抓，`--headless` 默认避免弹窗）。**首次需扫码登录一次**，之后复用登录态缓存。频率经 `--preset` 控制：默认 `safe`（并发1、每请求 6-15s 抖动）稳；`ultra` 超稳档（并发1、12-28s＋词间休息 180s）供风控期/长跑用；`fast`（并发3、2-6s）提速但风控面更大。词间另有 `--kw-gap` 休息（safe/fast 默认 90s）。显式 `--speed/--sleep-*/--per-keyword/--kw-gap` 会覆盖 preset。`--retry-fail` 失败重试。
