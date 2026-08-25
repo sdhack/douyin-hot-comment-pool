@@ -297,6 +297,54 @@ def ensure_mc_video_gate_patch(mc_root, min_likes=10000):
         return None
 
 
+def ensure_mc_stop_floor_patch(mc_root):
+    """给 core.py search() 注入「按赞止停」（幂等，带 .bak 回滚）。
+
+    配合 MOST_LIKE 排序（结果严格赞降序）：本页出现点赞低于 MC_STOP_AT_LIKE_FLOOR
+    （默认取视频门槛值）的视频时——过滤掉这些视频的评论抓取并结束当前关键词的翻页
+    （break 仅跳出分页 while，不影响后续关键词）。env 未设置时零行为变化。
+    返回 patched/already/no-anchor/verify-failed/None。
+    """
+    p = os.path.join(mc_root, "media_platform", "douyin", "core.py")
+    if not os.path.isfile(p):
+        return None
+    try:
+        src = open(p, encoding="utf-8-sig").read()
+    except OSError:
+        return None
+    if "MC_STOP_AT_LIKE_FLOOR" in src:
+        return "already"
+    try:
+        bak = p + ".stop.bak"
+        if not os.path.isfile(bak):
+            open(bak, "w", encoding="utf-8").write(src)
+        anchor = ('                # Batch get note comments for the current page\n'
+                  "                await self.batch_get_note_comments(page_aweme_list)")
+        new = ('                # Batch get note comments for the current page\n'
+               '                _saf = int(os.getenv("MC_STOP_AT_LIKE_FLOOR", "0") or 0)\n'
+               "                if _saf > 0 and page_aweme_list:\n"
+               '                    _lk = getattr(self, "_mc_opt_liked_counts", {})\n'
+               '                    _below = [str(a) for a in page_aweme_list\n'
+               '                              if _lk.get(str(a)) is not None and _lk[str(a)] < _saf]\n'
+               "                    if _below:\n"
+               '                        utils.logger.info(f"[MC_OPT] stop_at_like_floor keyword:{keyword} "\n'
+               '                                          f"below_floor_n={len(_below)} -> 按赞降序，本词到此为止")\n'
+               "                        await self.batch_get_note_comments(\n"
+               "                            [a for a in page_aweme_list if str(a) not in _below])\n"
+               "                        break\n"
+               "                await self.batch_get_note_comments(page_aweme_list)")
+        if anchor not in src:
+            return "no-anchor"
+        patched = src.replace(anchor, new, 1)
+        if patched == src:
+            return "verify-failed"
+        open(p, "w", encoding="utf-8", newline="").write(patched)
+        now = open(p, encoding="utf-8").read()
+        return "patched" if "MC_STOP_AT_LIKE_FLOOR" in now else "verify-failed"
+    except Exception:
+        return None
+
+
 def ensure_mc_sort_patch(mc_root):
     """让搜索接口支持排序选择（幂等，带 .bak 回滚）。
 
@@ -491,6 +539,8 @@ def main():
     ap.add_argument("--max-min", type=float, default=None, help="单次抓取最大运行分钟数（防子进程挂起）")
     ap.add_argument("--lt", default="qrcode", choices=["qrcode", "cookie", "phone"])
     ap.add_argument("--cookies", default=None)
+    ap.add_argument("--stop-at-like-floor", dest="stop_at_like_floor", action="store_true",
+                    help="配合按赞排序：抓到首个点赞低于视频门槛的视频即结束本词（替代固定条数；自动启用最多点赞排序）")
     ap.add_argument("--search-sort", dest="search_sort", type=int, default=0, choices=[0, 1, 2],
                     help="搜索结果排序：0=综合(默认) 1=最多点赞(实测严格赞降序，配合万赞门槛零浪费) 2=最新发布")
     ap.add_argument("--video-min-likes", dest="video_min_likes", type=int, default=10000,
@@ -586,6 +636,18 @@ def main():
                   f"({'最多点赞' if a.search_sort == 1 else '最新发布'})")
     else:
         print(f"[搜索排序] 补丁失败({r_sort})，固定综合排序")
+
+    if a.stop_at_like_floor:
+        if a.search_sort == 0:
+            a.search_sort = 1   # 止停依赖赞降序，自动启用最多点赞
+        if r_sort in ("patched", "already"):
+            env["MC_SEARCH_SORT_TYPE"] = str(a.search_sort)
+        r_sf = ensure_mc_stop_floor_patch(mc_root)
+        if r_sf in ("patched", "already"):
+            env["MC_STOP_AT_LIKE_FLOOR"] = str(a.video_min_likes)
+            print(f"[按赞止停] {r_sf}; 排序=最多点赞，抓到点赞<{a.video_min_likes} 即结束本词（不再固定条数）")
+        else:
+            print(f"[按赞止停] 补丁失败({r_sf})，退回固定条数模式")
 
     if a.get_comment:
         r_gate = ensure_mc_video_gate_patch(mc_root, min_likes=a.video_min_likes)

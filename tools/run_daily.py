@@ -177,6 +177,8 @@ def main():
     ap.add_argument("--sleep-min", type=float, default=3)
     ap.add_argument("--sleep-max", type=float, default=3)
     ap.add_argument("--retry-fail", type=int, default=2)
+    ap.add_argument("--stop-at-like-floor", action="store_true",
+                    help="按赞排序抓到首个低于1万门槛的视频即结束本词（自动启用 --sort-by-likes；替代固定 per-keyword 条数）")
     ap.add_argument("--sort-by-likes", action="store_true",
                     help="搜索结果按最多点赞排序（实测严格赞降序；配合万赞门槛几乎零浪费。注意：同词结果固定，重复跑依赖跳过去重）")
     ap.add_argument("--show-browser", action="store_true",
@@ -227,6 +229,8 @@ def _crawl_keyword(a, kw, skip_file=None):
     sub_args += ["--min-likes", str(a.min_likes), "--min-replies", str(a.min_replies)]
     if getattr(a, "sort_by_likes", False):
         sub_args += ["--search-sort", "1"]
+    if getattr(a, "stop_at_like_floor", False):
+        sub_args += ["--stop-at-like-floor"]
     r = subprocess.run([sys.executable, os.path.join(TOOLS, "collect_search.py")] + sub_args)
     run_root = None
     pointer = os.path.join(a.root, f".douyin-crawl-current-{a.account}.json")

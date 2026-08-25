@@ -9,6 +9,14 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.9.13] - 2026-08-25
+
+### Added
+- **按赞止停（`--stop-at-like-floor`，用户定义的新采集形态）**：配合最多点赞排序——按赞降序抓取，遇到首个点赞低于视频门槛（1 万）的视频即结束本关键词翻页，**替代固定 per-keyword 条数**：大词自动多抓、小词自动早收。实现为幂等 patch 注入 core.py 分页循环（env `MC_STOP_AT_LIKE_FLOOR`，break 仅跳出分页不影响后续关键词）；低于门槛的视频仍入库视频信息供「二次复活」。已实测触发（300k 阈值下 below_floor_n=4 正确截断），env 未设置时零行为变化。
+
+### Fixed
+- `ensure_mc_sleep_patch` 的 jitter-v2 标记实际位于 config/__init__.py 而非 base_config.py，修正检测位置后 no-var 告警彻底消除。
+
 ## [0.9.12] - 2026-08-25
 
 ### Added
