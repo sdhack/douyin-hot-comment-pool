@@ -9,6 +9,11 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.9.6] - 2026-08-25
+
+### Changed
+- GitHub 仓库迁移至 `gm-douyin-hot-comment-pool`，同步更新发布元数据中的仓库地址。
+
 ## [0.9.5] - 2026-08-25
 
 ### Changed

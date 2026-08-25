@@ -1,6 +1,6 @@
 # 维护说明
 
-当前版本：`V0.9.5`。
+当前版本：`V0.9.6`。
 
 每次更新 `SKILL.md`、脚本、规则、引用资料或 UI 元数据时，都必须递增版本、更新 `agents/openai.yaml` 的 `display_name`，并在 `CHANGELOG.md` 记录变更。展示名固定为 `GM 抖音爆款长评采集 V版本号`。
 
