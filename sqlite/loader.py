@@ -80,8 +80,8 @@ def _pictures_url(r):
     return json.dumps([u for u in urls if u], ensure_ascii=False) if urls else ""
 
 
-def import_batch(conn, batch_dir, keyword="", account="", batches=True):
-    """返回 {videos, comments, accounts}。”"""
+def import_batch(conn, batch_dir, keyword="", account="", batches=True, batch_id=""):
+    """返回 {videos, comments, accounts}; 显式传 batch_id 可避免同账号跨天批次行被覆盖(fix Bug-5)。"""
     batch_dir = os.path.normpath(batch_dir)
     # 向下定位 douyin/jsonl（可能在 batch根 或 crawl_<account>/ 下）
     jsonl_d = os.path.join(batch_dir, ROOT_MARK, "jsonl")
@@ -93,7 +93,7 @@ def import_batch(conn, batch_dir, keyword="", account="", batches=True):
                 break
     if not os.path.isdir(jsonl_d) or not glob.glob(os.path.join(jsonl_d, "*.jsonl")):
         raise FileNotFoundError(f"不是有效批次目录(缺含jsonl的 {ROOT_MARK}/jsonl): {batch_dir}")
-    bid = account or _batch_id(batch_dir)
+    bid = batch_id or account or _batch_id(batch_dir)  # fix Bug-5: 显式批次号优先，防跨天覆盖
 
     # 预写批次元信息
     if batches:
@@ -129,7 +129,7 @@ def import_batch(conn, batch_dir, keyword="", account="", batches=True):
                     liked_count=excluded.liked_count, collected_count=excluded.collected_count,
                     comment_count=excluded.comment_count, share_count=excluded.share_count,
                     comment_count=excluded.comment_count, nickname=excluded.nickname,
-                    source_keyword=CASE WHEN videos.source_keyword='' THEN excluded.source_keyword ELSE videos.source_keyword END"""
+                    source_keyword=excluded.source_keyword"""  # fix Bug-10: 新关键词覆盖旧词（不再首见冻结）
     com_stmt = """INSERT INTO comments(comment_id, aweme_id, creator_hash, parent_comment_id, content,
                   like_count, sub_comment_count, create_time, last_modify_ts, pictures_url, batch_id)
                   VALUES(?,?,?,?,?,?,?,?,?,?,?)
@@ -156,9 +156,8 @@ def import_batch(conn, batch_dir, keyword="", account="", batches=True):
                 conn.execute(acc_stmt, (ahash, nickname, now, now))
                 stats["accounts"] += 1
             vid = str(r.get("aweme_id") or "")
-            if not vid or vid in seen_vids and vid:
-                if not vid:
-                    continue
+            if not vid or vid in seen_vids:
+                continue
             seen_vids.add(vid)
             conn.execute(vid_stmt, (
                 vid, ahash, nickname, r.get("title") or "", r.get("delta_desc") or r.get("desc") or "",

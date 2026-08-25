@@ -1,15 +1,15 @@
 {
   "name": "douyin-hot-comment-pool",
-  "version": "0.8.0",
+  "version": "0.10.0",
   "owner": "Gao Ming",
-  "updated_at": "2026-08-23",
+  "updated_at": "2026-08-26",
   "status": "active",
   "maturity_tier": "reusable",
   "lifecycle_stage": "reusable",
   "context_budget_tier": "production",
   "review_cadence": "monthly",
   "skill_archetype": "automation-pipeline",
-  "description": "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，每日达标即停；数据可落入技能内置 SQLite 做累计与分析。",
+  "description": "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、已采视频自动跳过重复抓取、磁盘零 JSON 残留、每日达标即停并输出当日报告。",
   "job_to_be_done": "猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材",
   "default_prompt": "Use $douyin-hot-comment-pool when you need to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。",
   "activation_mode": "manual",
@@ -27,7 +27,7 @@
     "agent-skills-compatible",
     "vscode"
   ],
-  "source_files_count": 14,
+  "source_files_count": 16,
   "license": "MIT",
   "repo": "https://github.com/sdhack/douyin-hot-comment-pool",
   "changelog": "CHANGELOG.md",
@@ -41,6 +41,7 @@
   "components": {
     "scripts": [
       "tools/run_daily.py",
+      "tools/run_daily_v2.py",
       "tools/collect_search.py",
       "tools/filter_pool.py",
       "tools/aggregate_comments.py",
@@ -53,7 +54,7 @@
     "database": {
       "sqlite": "sqlite/douyin_hotpool.db",
       "schema": "sqlite/db.py",
-      "note": "打包自带空库（schema 就绪），采集数据由接收方通过 loader.py 自行导入，不随包外发"
+      "note": "库文件不入版本库（防采集数据外泄）；克隆后执行 python sqlite/db.py --init 一键重建空库，采集数据经 loader.py 自行导入"
     },
     "references": [
       "references/keywords.example.yml"
@@ -67,7 +68,8 @@
     ],
     "tests": [
       "tests/selfcheck.py",
-      "tests/sqlite_selfcheck.py"
+      "tests/sqlite_selfcheck.py",
+      "tests/ingest_selfcheck.py"
     ]
   },
   "required_dependencies": {

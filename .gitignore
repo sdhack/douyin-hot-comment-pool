@@ -20,3 +20,5 @@ comments_aggregated.json
 # 系统
 .DS_Store
 Thumbs.db
+# SQLite 库不入版本库（防采集数据外泄；克隆后 db.py --init 重建）
+sqlite/*.db

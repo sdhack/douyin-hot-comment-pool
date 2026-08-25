@@ -2,32 +2,40 @@
 
 # 🎯 抖音爆款评论池
 
-**让「爆款评论可遇不可求」变成「每天稳定捞 5 条能改写成爆款文案的高互动长评论」**
+**让「爆款评论可遇不可求」变成「每天稳定捞出能改写成爆款文案的高互动长评论」**
 
-> 广撒网采样 × 三级门槛筛选 × 每日配额达标即停 —— 把随机性摊平，把爆款沉淀成资产。
-> 数据可落入内置 SQLite 做累计与分析，整套技能 **可移植到任意 agent**。
-
-<!-- badges -->
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
-[![SQLite](https://img.shields.io/badge/SQLite-内置-003B57?logo=sqlite&logoColor=fff)](#)
+[![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
+[![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
+[![Skill v](https://img.shields.io/badge/Skill-v0.9.13-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.8.0-blue)](#)
-[![Platform](https://img.shields.io/badge/Platform-TRAE%20%2F%20Claude%20%2F%20OpenAI-lightgrey)](#)
+
+**六层智能漏斗 · 单场 4 小时无人值守沉淀 100 条爆款 · 零 JSON 残留 · 跨 Agent 可移植**
+
+`按赞排序` → `视频1万门槛截断` → `已采去重` → `评论热度水位早停` → `三级门槛筛选` → `配额达标即停`
 
 </div>
 
 ---
 
+## 💥 一句话卖点
+
+别人刷评论区靠运气翻页，这台机器**每一层漏斗都有实测数据背书**：
+
+| 漏斗层 | 拦截什么 | 实测收益 |
+|---|---|---|
+| 🔍 按赞排序搜索 | 综合排序混进的低赞尾部 | 结果严格赞降序，头部全是万赞+ |
+| 🎯 视频 1 万门槛 | 点赞不足的视频（评论里不会有千赞长评） | **183 个零产出视频免抓，省 20% 请求** |
+| ♻️ 已采去重 | 语义相近词命中的同一批热门视频 | 单场拦截 8-9 个/词轮次 |
+| 🌡️ 评论热度水位早停 | 冷尾翻页（页内最高赞<1000 即止损） | 低热视频省一半以上翻页请求 |
+| ⛩️ 三级门槛筛选 | 口水、短评、不可成文内容 | 「哈哈哈」再高赞也进不了池子 |
+| 🛑 配额达标即停 | 流程自嗨空跑 | 满额立即停止，绝不多抓一轮 |
+
+---
+
 ## ✨ 它解决什么
 
-人工刷抖音的痛点是「一台设备、逐条翻、靠运气」，而爆款评论往往**出现在哪并不固定**——可能藏在某个随机刷到的视频评论区，根本不按你的预期出现。
-
-本项目把这件事变成**可工程化的流水线**：用机器批量喂入海量视频样本，等效「一次刷几百个视频的评论区」，再用三道门槛把真正**脱离原视频也能成文**的评论筛出来。
-
-```text
-   大海捞针 → 广撒网采样 → 三级门槛 → 每日达标 5 条 → 沉淀成文案素材池
-   （位置不固定）  （覆盖面摊平随机）（漏斗精选）   （流程永不无限跑）   （供改写成爆款文案）
-```
+人工刷抖音的痛点是「一台设备、逐条翻、靠运气」，而爆款评论往往**出现在哪并不固定**——可能藏在任何一条视频的评论区。本项目把它变成可工程化的流水线：机器批量喂入海量视频样本，等效「一次刷几百个视频的评论区」，再用层层漏斗把真正**脱离原视频也能成文**的长评筛出来、洗出来、存起来。
 
 ### 三条硬原则
 
@@ -35,7 +43,7 @@
 |---|------|------|
 | 1 | **样本广而浅** | 宁可关键词多、每条视频评论少，覆盖优先——位置不固定靠覆盖摊平 |
 | 2 | **三级门槛缺一不可** | 高互动(点赞/回复) → 字数(去符号达标) → 可成文性(自带钩子/情绪/细节)。「哈哈哈」这种短到口水的再高赞也拆不出一句文案骨架，必须淘汰 |
-| 3 | **达标即停** | 每天最多入池 `--quota` 条（默认 5），达标立即结束，**流程永不自嗨到跑不完**；当日计数跨天自动重置 |
+| 3 | **达标即停** | 启动时 + 每词开抓前双重复查当日入池数，满 `--quota` 立即停——流程永不自嗨到跑不完 |
 
 ---
 
@@ -44,32 +52,87 @@
 ```
                     ┌────────────────────────────────────────────┐
    关键词广撒网 ──▶ │ MediaCrawler API 直抓（非浏览器 DOM 模拟）│
-   （养生/智商税   │  = 一次抓几百个视频的评论区                │
-     避坑/宝妈…）  └────────────────────────────────────────────┘
+   （养生/医学科普 │  可选 --sort-by-likes：结果严格赞降序       │
+     /脂肪肝…）    └────────────────────────────────────────────┘
+                                    │  ▶ 逐关键词循环：
+                                    ▼
+        ┌───────────────────────────────────────────────────────┐
+        │ ⓪ 视频级过滤：<1万赞跳过评论（二次涨过门槛再抓）        │
+        │    已采过的跳过（skip 名单去重）                        │
+        │    按赞止停：遇到低于门槛即结束本词（替代固定条数）      │
+        ├───────────────────────────────────────────────────────┤
+        │ ① 实时入库 SQLite（loader 幂等导入）                   │
+        │ ② 内存聚合(每视频按赞 top-N) + 翻页热度水位早停         │
+        │ ③ 三级门槛筛选：like≥1000或reply≥50 / 字数≥30 / 评分≥55│
+        │ ④ 写入 hits（配额封顶 + 全量去重）                      │
+        │ ⑤ 清理采集目录（磁盘零 JSON 残留）                      │
+        └───────────────────────────────────────────────────────┘
                                     │
                                     ▼
-                         聚合(每视频按赞 top-N)
+                  达标即停 —— 每词开抓前复查配额，满额立即停止
                                     │
                                     ▼
-                     ┌─────────────────────────┐
-                     │  三级门槛筛选漏斗        │
-                     │  ① 高互动                │
-                     │    like≥1000 或 reply≥50 │
-                     │  ② 有效字数 ≥30          │
-                     │  ③ 可成文评分 ≥55        │
-                     └─────────────────────────┘
-                                    │
-                                    ▼
-                     达标即停 —— 每日入池 ≤ 5 条
-                                    │
-                                    ▼
-              内置 SQLite 数据中心（默认入库，不写 json）
-              accounts/videos/comments/ancestry/（原始采集）
+              末尾输出当日报告 + 内置 SQLite 数据中心（唯一数据落点）
+              accounts/videos/comments/ancestry/batches（原始采集）
               + hits 表（精选爆款命中 / 达标即停依据）
               └─ 累计 / 关联分析 / 跨 Agent 移植
 ```
 
-> 主路径走**实时 MediaCrawler 采集**（API 签名直抓，`--headless` 默认），首次扫码登录一次后复用缓存。离线模式仅用于调试排障。
+> 主路径走**实时 MediaCrawler 采集**（API 签名直抓，首次扫码登录一次后复用缓存；**默认即有头**绑指纹，加 `--headless` 才转无头后台采集）。离线模式仅用于调试排障。
+>
+> **采集间隔三重防护**：每请求区间抖动（safe 档 6-15s）× 词间休息（默认 90s）× 超稳档 `ultra`（12-28s＋词间 180s，风控期/长跑用）。
+
+---
+
+## 🏆 实测战绩
+
+### 单场百条马拉松（2026-08-24）
+
+一次「健康」主题抓取，主词自动延伸 39 个关联关键词，跑满 100 条配额自停：
+
+| 指标 | 数值 |
+|---|---|
+| 爆款命中 | **100 条**（全部过三级门槛 + 全量去重） |
+| 采样规模 | 909 视频 / 37,964 评论 / 653 作者 |
+| 命中质量 | 平均 **6,639 赞** / 253 回复；最高 15 万赞 / 5,257 回复 |
+| 词效发现 | 疾病/心理科普词最高产：「老年痴呆+抑郁症」两词爆发 +23 条 |
+| 磁盘残留 | 0 个 JSON |
+
+### v2 两段式提速（19×）
+
+`run_daily_v2.py` 两段式调度器：合并单进程搜索 → 本地按赞排序去重 → 仅对 Top 高赞视频定向深挖（评论深度自适应 100~250 条）。**首轮全流程 25.5 分钟 → 81.8 秒（≈19×）**，详见 [`reports/compare-v1-vs-v2/`](reports/compare-v1-vs-v2/compare-v1-vs-v2.html)。
+
+```bat
+python %POOL%\tools\run_daily_v2.py --root <工作根> --account <slug> ^
+  --keywords "养生;健康;医学科普" --quota 5 --preset fast --skip-search
+```
+
+### 池中真实命中样例
+
+```text
+91分  268赞/79回     24岁第一次查胃肠镜。那段时间经常不舒服，以为是胃病……
+80分  8135赞/339回   我爷爷也有点痴呆了，他成天说我爸，说一天天不上班……
+79分  3540赞/306回   我就是受益者，年初250斤进医院，下定决心减肥就是16+8……
+77分  52308赞/5257回 真心建议，千万不要看见别人发光，就觉得自己暗淡……
+```
+
+---
+
+## 🔟 十大硬核特性
+
+| 特性 | 说明 |
+|------|------|
+| 🔍 **默认按赞排序** | `--search-sort 1`（默认）最多点赞降序，配合门槛与按赞止停请求量最少；组合词空桶时切 `--search-sort 0` 综合破空 |
+| 🛡️ **默认有头绑指纹** | CDP 会话默认有头（`--headless` 才转无头），扫码重登后绑定可见指纹，显著降空响应反爬 |
+| 🎯 **视频级 1 万门槛** | 点赞<1万的视频直接跳过评论抓取（实测零产出）；二次遇到若点赞已涨过门槛自动恢复抓取 |
+| ♻️ **已采智能去重** | 已采视频经 skip 名单跳过；入选命中按「同 comment_id 或同文本」跨天全量去重 |
+| 🌡️ **评论热度水位早停** | 页内最高赞<1000 且最高回复<50 即停止该视频翻页——冷尾请求全省 |
+| ⚡ **逐词实时入库** | 每词抓完秒级导入 SQLite（UPSERT 幂等），中断不丢数据 |
+| 🧠 **内存筛选管线** | 聚合+三级门槛全程内存完成，不产生任何中间文件 |
+| 🧹 **磁盘零 JSON 残留** | 每词入库后运行目录整段删除，数据唯一落点是 SQLite；入库失败才保留现场 |
+| 🛑 **达标即停硬保证** | 启动时 + 每词开抓前双重复查配额，一满立即停 |
+| 📊 **当日采集报告** | 逐词统计 / 命中明细（评分·赞回·摘录）/ 库内累计 / 耗时 / 停止原因 |
+| 🖥️ **弹窗采集模式** | 扫码重登后新会话绑定有头指纹，`--show-browser` 一键切换可见浏览器采集 |
 
 ---
 
@@ -77,43 +140,54 @@
 
 ### 0️⃣ 安装（可移植到任意 agent）
 
-把整个 `douyin-hot-comment-pool/` 目录放到目标 agent 的 skills 目录即可。**仅需 Python 3.9+**，`filter_pool / run_daily / sqlite/*` 全部只用标准库。
+把整个技能目录放到目标 agent 的 skills 目录即可。**仅需 Python 3.9+**，核心脚本全部只用标准库。
 
 ```bat
-python sqlite\db.py --init     REM 首次建库（自带空库，schema 已就绪）
+python sqlite\db.py --init     REM 首次建库（库文件不入版本库，init 一键重建 schema）
 ```
 
-**仅实时采集需本机已装 MediaCrawler**（`collect_search.py` 直接调度其 `main.py`，经 env `MEDIACRAWLER_PY/MC_ROOT` > 全局注册指针 `runtime-registry.json` > 默认缓存 `~/.cache/codex-mediacrawler/MediaCrawler` 解析）。若首次启动报 `Executable doesn't exist ...chromium_headless_shell`，补装 Playwright 浏览器二进制：
+**仅实时采集需本机已装 MediaCrawler**（经 env `MEDIACRAWLER_PY/MC_ROOT` > 全局注册指针 > 默认缓存解析）。若报 `chromium_headless_shell` 缺失：
 
 ```bat
-<mediacrawler>\\.venv\Scripts\python.exe -m playwright install chromium --only-shell
+<mediacrawler>\.venv\Scripts\python.exe -m playwright install chromium --only-shell
 ```
 
-### 1️⃣ 一键日更：每天捞 5 条爆款评论即停
+### 1️⃣ 日常推荐：首挖新词（按赞止停）
 
 ```bat
 set POOL=%~dp0
-REM 默认 --preset safe=慢档（并发1/延时3-8s，最稳）；要提速换 --preset fast（并发3/延时1-3s，风控面更大）
+REM 按赞降序抓到首个低于 1 万赞的视频即结束本词——大词自动多抓、小词自动早收
+REM ultra 超稳档：每请求 12-28s 抖动＋风控期最稳；默认即有头绑指纹
 python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
-  --keywords "养生;智商税;避坑;宝妈" --quota 5 --preset safe --retry-fail 2
-REM 显式 --speed/--sleep-*/--per-keyword/--comments-count 会覆盖 preset
+  --keywords "新词甲;新词乙" --quota 5 --preset ultra --stop-at-like-floor
 ```
 
-### 2️⃣ 只用已有的评论数据跑通筛选（离线调试）
+### 2️⃣ 经典模式：广撒网固定采样 + 冲量
+
+```bat
+REM 默认 safe=慢档（并发1/每请求6-15s抖动+词间休息90s）；要提速换 fast（并发3/2-6s）
+python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
+  --keywords "养生;智商税;避坑;宝妈" --quota 5 --preset safe --retry-fail 2
+
+REM 冲量实测：--quota 100 + 39 词跑满自停
+python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
+  --keywords "健康;医学科普;脂肪肝;体检;抑郁症" --quota 100 ^
+  --per-keyword 20 --comments-count 40 --sleep-min 2 --sleep-max 4
+```
+
+### 3️⃣ 两段式极速版（v2 调度器，19× 提速）
+
+见上方 [性能进化](#-实测战绩) 章节。
+
+### 4️⃣ 离线调试 + 数据分析
 
 ```bat
 python tools\filter_pool.py --in <comments.json> --out <candidates.json> ^
   --min-likes 1000 --min-replies 50 --min-len 30 --min-score 55 --max-n 60
-```
 
-### 3️⃣ SQLite 数据累计与分析
-
-```bat
-python sqlite\loader.py --dir <搜索批次目录>     REM 幂等导入一批采集数据
-python sqlite\loader.py --all <工作根>            REM 批量回填所有 hcp* 批次
-python sqlite\report.py --stats                   REM 汇总统计
+python sqlite\report.py --stats                   REM 库内汇总
 python sqlite\report.py --hot --top 20            REM 爆款榜（JOIN 视频/作者）
-python sqlite\report.py --threads --cid <评论id>  REM 查看某爆款的讨论串
+python sqlite\report.py --threads --cid <评论id>  REM 某爆款的讨论串
 ```
 
 ---
@@ -122,18 +196,17 @@ python sqlite\report.py --threads --cid <评论id>  REM 查看某爆款的讨论
 
 | 门槛 | 参数 | 默认 | 说明 |
 |------|------|------|------|
-| ① 高互动 | `--min-likes` / `--min-replies` | `1000` / `50` | 点赞**或**回复任一达到即过 |
+| ① 高互动 | `--min-likes` / `--min-replies` | `1000` / `50` | 点赞**或**回复任一达到即过；同时用作评论翻页热度水位 |
 | ② 字数 | `--min-len` | `30` | 去符号 / 去 emoji 后有效字数，过滤短评 |
-| ③ 可成文性 | `--min-score` | `55` | 规则评分（钩子/情绪/具体意象/数字/行动主体/疑问）＋口水词排除（"哈哈哈""收藏了""扣1"） |
-| 每日配额 | `--quota` | `5` | 每日达标即停上限 |
+| ③ 可成文性 | `--min-score` | `55` | 规则评分（钩子/情绪/具体意象/数字/行动主体/疑问）＋口水词排除 |
+| 视频门槛 | `--video-min-likes` | `10000` | 视频级点赞硬门槛（二次复活机制见特性表） |
+| 每日配额 | `--quota` | `5` | 每日达标即停上限（冲量可调大到 100+） |
 
-> 阈值全部可用命令行调整，按你的行业 / 平台 / 爆款标准微调。
+> 全部阈值可用命令行微调，适配你的行业 / 平台 / 爆款标准。
 
 ---
 
 ## 🗄️ SQLite 数据中心设计
-
-把**爆款评论池相关搜索批次**的：视频全部信息、作者信息、命中的评论、采集元信息，统一落入技能内置 SQLite，便于系统化累计、关联分析与**跨 Agent 移植**。库文件随技能走，整体复制技能目录即可迁移。
 
 ```
 ┌────────────┐  1:n   ┌──────────┐  1:n  ┌──────────────┐
@@ -144,37 +217,37 @@ python sqlite\report.py --threads --cid <评论id>  REM 查看某爆款的讨论
                       └──────────┘        └──────┬───────┘
                                                  │ 1:n
                                           ┌──────▼───────┐   ┌──────────────┐
-                                          │ ancestrv 讨论串│   │    hits 爆款 │
+                                          │ ancestry 讨论串│   │    hits 爆款 │
                                           │ 子→父→根/depth│   │  score/理由  │
                                           └──────────────┘   └──────┬───────┘
                                                batches(采集元信息) ─┘
       视图: vw_hot_comments(命中+视频+作者) · vw_threads(讨论串) · vw_daily_stats(每日累计)
 ```
 
-**设计约束**（可移植性 / 体积 / 数据安全的平衡）：
-- **幂等**：重复导入同批次不产生重复行（UPSERT），天然支持断点续跑与跨天累计。
-- **只入 URL**：评论图片、视频下载链接等大字段仅存 URL 字符串，不解析二进制，控制库体积。
-- **只导爆款池相关**：`--all` 只批量导入 `hcp*` 搜索批次，不误导入定向账号采集批次。
-- **空库外发**：打包只带空 schema 库，真实采集数据留在数据拥有方本地，不随包外泄。
+**设计约束**：
+- **幂等**：重复导入同批次不产生重复行（UPSERT），断点续跑与跨天累计天然安全
+- **只入 URL**：图片/视频下载链接等大字段仅存 URL 字符串，控制库体积
+- **数据不出本地**：库文件不入版本库（`.gitignore` 拦截），克隆后 `db.py --init` 重建空库
 
 ---
 
 ## 🛡️ 合规边界
 
-- 只抓**公开可浏览**的评论区，频率经 `--preset` 控制：默认 `safe`（并发1 + 延时3-8s + 失败重试）最稳；`--preset fast`（并发3 + 延时1-3s）提速但风控暴露面更大，正式账号务必谨慎。
-- 爆款评论用于**借鉴结构 / 钩子、重写表达**落到 IP 账号，不建议照搬商用（版权风险）。
-- 采集数据由数据拥有方自行保管，打包不携带真实数据外发。
+- 只抓**公开可浏览**评论区；频率三重防护：`safe`（并发1 + 每请求 6-15s + 词间 90s）、`ultra` 超稳档（12-28s + 词间 180s，风控期用）、`fast`（并发3 + 2-6s，风控面大慎用）
+- 爆款评论用于**借鉴结构 / 钩子、重写表达**落到 IP 账号，不建议照搬商用（版权风险）
+- 采集数据由数据拥有方自行保管，仓库与分发包均不携带真实数据
 
 ---
 
 ## ✅ 验证
 
 ```bat
-python tests\selfcheck.py          REM 三级门槛逻辑自测
-python tests\sqlite_selfcheck.py   REM SQLite 全链路端到端自测（9 项）
+python tests\selfcheck.py           REM 三级门槛逻辑自测
+python tests\sqlite_selfcheck.py    REM SQLite 全链路端到端自测（9 项）
+python tests\ingest_selfcheck.py    REM 实时入库管线自测（8 项）
 ```
 
-`sqlite_selfcheck` 覆盖：建库视图 → 导入 → 讨论串 → 幂等重复导入 → hits 回流 → 讨论串视图。隔离解压后直接跑通 = 可移植。✓（v0.8.0 全通过）
+覆盖：内存 top-N 排序回归 → 实时入库 → 三级门槛 → 配额封顶 → 目录清理 → 空结果清理 → **跨天去重**。全部离线可跑。✓（v0.9.13 全通过）
 
 ---
 
@@ -185,28 +258,29 @@ douyin-hot-comment-pool/
 ├── SKILL.md                    # 技能主规范（入口）
 ├── manifest.json               # 技能元数据 / 依赖 / 权限
 ├── README.md                   # 项目说明（本文件）
-├── CHANGELOG.md                # 版本变更
+├── CHANGELOG.md                # 版本变更（0.9.0 → 0.9.13 完整演进）
 ├── SECURITY.md                 # 安全边界与漏洞报告
-├── CONTRIBUTING.md             # 贡献指南
-├── CODE_OF_CONDUCT.md          # 行为准则
-├── LICENSE                     # MIT
+├── MAINTENANCE.md              # 维护手册（版本同步 / 编码规范）
+├── agents/openai.yaml          # 列表展示名（V 版本号随发版同步）
 ├── references/
 │   └── keywords.example.yml    # 关键词池配置示例
 ├── tools/
-│   ├── run_daily.py            # 每日主路径：实时采集→筛选→沉淀→达标即停
-│   ├── collect_search.py       # 关键词广撒网采集（直接调度本机 MediaCrawler）
+│   ├── run_daily.py            # 主路径：逐词实时入库→内存筛选→达标即停→当日报告
+│   ├── run_daily_v2.py         # 两段式调度器（19× 提速，断点续跑）
+│   ├── collect_search.py       # 关键词采集（调度 MediaCrawler + 幂等运行时补丁）
 │   ├── filter_pool.py          # 三级门槛筛选（可离线单独用）
-│   ├── aggregate_comments.py   # 评论 jsonl 聚合（每视频按赞 top-N）
-│   └── _presets.py             # --preset 采集档位预设（safe/fast，供 run_daily 与 collect_search 共享）
+│   ├── aggregate_comments.py   # 内存聚合 aggregate_paths 主路径 + CLI 调试
+│   └── _presets.py             # 档位预设（safe / ultra / fast）
 ├── sqlite/
-│   ├── db.py                   # 建库建表（6表+3视图），一键 init
-│   ├── loader.py               # 幂等导入搜索批次 → 库
-│   ├── hits_backfill.py        # 沉淀池命中回流 hits 表
+│   ├── db.py                   # 建库建表（6表+3视图）
+│   ├── loader.py               # 幂等导入（batch_id 逐词记账）
+│   ├── hits_backfill.py        # 存量命中回流
 │   ├── report.py               # 汇总 / 爆款榜 / 账号榜 / 批次 / 讨论串
-│   └── douyin_hotpool.db       # 空库（schema 就绪，数据由接收方自行导入）
+│   └── douyin_hotpool.db       # 本地数据中心（不入版本库）
 └── tests/
     ├── selfcheck.py            # 三级门槛自测
-    └── sqlite_selfcheck.py     # SQLite 全链路端到端自测
+    ├── sqlite_selfcheck.py     # SQLite 端到端自测
+    └── ingest_selfcheck.py     # 实时入库管线自测
 ```
 
 ---
@@ -216,15 +290,15 @@ douyin-hot-comment-pool/
 | 依赖 | 用途 | 备注 |
 |------|------|------|
 | Python 3.9+ | 运行 | 离线筛选 / 建库仅需标准库 |
-| MediaCrawler | 实时采集（可选） | 直接调度其 main.py，需 `playwright install chromium --only-shell` 浏览器二进制 |
-| `master-copywriting` | 文案改写（可选） | 把池中爆款评论改写成成 IP 账号文案 |
+| MediaCrawler | 实时采集（可选） | 直调其 main.py，需 `playwright install chromium --only-shell` |
+| `master-copywriting` | 文案改写（可选） | 池中爆款评论 → IP 账号文案草稿 |
 
 ---
 
-## 🤝 Roadmap / 后续
+## 🤝 Roadmap
 
-- [ ] 关键词命中占比分析，自动推荐当日最易出爆款的关键词
-- [ ] 爆款评论 → `master-copywriting` 一键改写为四账号草稿
+- [ ] 关键词命中占比分析，自动推荐当日最易出爆款的词
+- [ ] 沉淀池 → `master-copywriting` 一键改写为四账号草稿
 - [ ] 沉淀池趋势看板（SQLite → HTML 报表）
 
 ---
