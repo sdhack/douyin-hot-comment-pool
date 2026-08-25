@@ -1,6 +1,6 @@
 ---
 name: "douyin-hot-comment-pool"
-version: "0.9.2"
+version: "0.9.4"
 description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、磁盘零 JSON 残留、每日达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"
 ---
 
@@ -137,3 +137,11 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 - **MediaCrawler**（实时采集时）——直接调其 `main.py`，无需任何外部技能中转；经 env、全局注册指针 `runtime-registry.json` 或默认缓存 `~/.cache/codex-mediacrawler/MediaCrawler` 解析
 - Python 3.9+（离线筛选仅需标准库）
 - （可选）master-copywriting 用于把池中评论改写成文案
+
+## 版本同步
+
+任何 Agent 更新本技能时，必须同步递增 `agents/openai.yaml` 中 `interface.display_name` 的版本号。展示名格式固定为 `GM 中文用途 V版本号`；不得只更新技能内容而遗漏列表版本。
+
+## 文件编码
+
+技能内的文本文件必须使用 **UTF-8（无 BOM）** 保存。读取、生成或校验中文文件时，必须显式指定 UTF-8；在 Windows 上运行 Python 校验器时使用 `python -X utf8` 或设置 `PYTHONUTF8=1`，不得依赖系统默认 GBK 编码。
