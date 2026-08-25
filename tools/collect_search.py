@@ -230,6 +230,55 @@ def ensure_mc_search_diag_patch(mc_root):
         return None
 
 
+def ensure_mc_heat_patch(mc_root):
+    """给 client.py 评论翻页注入「热度水位早停」（幂等，带 .bak 回滚）。
+
+    抖音评论接口为固定智能排序（实测不接受排序参数），页码越深内容越冷：
+    某页最高 digg_count < MC_PAGE_HEAT_FLOOR_LIKES 且最高 reply_comment_total <
+    MC_PAGE_HEAT_FLOOR_REPLIES 时立即停止该视频后续翻页（阈值默认取三级门槛
+    --min-likes/--min-replies，0=关闭）。返回 patched/already/no-anchor/verify-failed/None。
+    """
+    p = os.path.join(mc_root, "media_platform", "douyin", "client.py")
+    if not os.path.isfile(p):
+        return None
+    try:
+        src = open(p, encoding="utf-8-sig").read()
+    except OSError:
+        return None
+    if "MC_PAGE_HEAT_FLOOR_LIKES" in src:
+        return "already"
+    try:
+        bak = p + ".heat.bak"
+        if not os.path.isfile(bak):
+            open(bak, "w", encoding="utf-8").write(src)
+        anchor = ('            comments = comments_res.get("comments", [])\n'
+                  "            if not comments:\n"
+                  "                continue\n")
+        insert = anchor + (
+            '            _fl = int(os.getenv("MC_PAGE_HEAT_FLOOR_LIKES", "0") or 0)\n'
+            '            _fr = int(os.getenv("MC_PAGE_HEAT_FLOOR_REPLIES", "0") or 0)\n'
+            "            if (_fl or _fr) and comments:\n"
+            "                try:\n"
+            '                    _mx_d = max(int(float(str(c.get("digg_count") or 0))) for c in comments)\n'
+            '                    _mx_r = max(int(float(str(c.get("reply_comment_total") or 0))) for c in comments)\n'
+            "                    if _mx_d < _fl and _mx_r < _fr:\n"
+            '                        utils.logger.info(f"[MC_OPT] early_stop_low_heat aweme_id:{aweme_id} "\n'
+            '                                          f"page_max_digg={_mx_d} page_max_reply={_mx_r} floor={_fl}/{_fr}")\n'
+            "                        return result\n"
+            "                except Exception:\n"
+            "                    pass\n")
+        if anchor not in src:
+            return "no-anchor"
+        patched = src.replace(anchor, insert, 1)
+        if patched == src:
+            return "verify-failed"
+        open(p, "w", encoding="utf-8", newline="").write(patched)
+        now = open(p, encoding="utf-8").read()
+        return "patched" if "MC_PAGE_HEAT_FLOOR_LIKES" in now else "verify-failed"
+    except Exception:
+        return None
+
+
 def _run_marker(path):
     return os.path.join(path, ".douyin-crawl-run.json")
 
@@ -338,6 +387,10 @@ def main():
     ap.add_argument("--max-min", type=float, default=None, help="单次抓取最大运行分钟数（防子进程挂起）")
     ap.add_argument("--lt", default="qrcode", choices=["qrcode", "cookie", "phone"])
     ap.add_argument("--cookies", default=None)
+    ap.add_argument("--min-likes", type=int, default=1000,
+                    help="评论翻页热度水位：页内最高赞低于此值且最高回复低于 --min-replies 时提前停止翻页")
+    ap.add_argument("--min-replies", type=int, default=50,
+                    help="评论翻页热度水位（回复数），配合 --min-likes 使用")
     ap.add_argument("--skip-file", dest="skip_file", default=None,
                     help="已采视频ID列表文件（每行一个 aweme_id）；命中的视频跳过评论重抓，降重复率与风控面")
     ap.add_argument("--headless", default=True, action=argparse.BooleanOptionalAction,
@@ -416,6 +469,15 @@ def main():
     r_diag = ensure_mc_search_diag_patch(mc_root)
     if r_diag == "patched":
         print("[诊断补丁] 搜索空结果日志已附 status_code/msg（区分未登录2483/风控）")
+
+    if a.get_comment and (a.min_likes > 0 or a.min_replies > 0):
+        r_heat = ensure_mc_heat_patch(mc_root)
+        if r_heat in ("patched", "already"):
+            env["MC_PAGE_HEAT_FLOOR_LIKES"] = str(a.min_likes)
+            env["MC_PAGE_HEAT_FLOOR_REPLIES"] = str(a.min_replies)
+            print(f"[热度早停] {r_heat}; 页内最高赞<{a.min_likes} 且最高回复<{a.min_replies} 即停止翻页")
+        else:
+            print(f"[热度早停] 补丁失败({r_heat})，将按 max_count 翻满")
 
     products, fail = [], 0
     skip_state = None  # (patch_result, 是否给子进程传了 MC_SKIP_FILE)

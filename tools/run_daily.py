@@ -222,6 +222,7 @@ def _crawl_keyword(a, kw, skip_file=None):
         sub_args += ["--skip-file", skip_file]
     if getattr(a, "show_browser", False):
         sub_args += ["--no-headless"]
+    sub_args += ["--min-likes", str(a.min_likes), "--min-replies", str(a.min_replies)]
     r = subprocess.run([sys.executable, os.path.join(TOOLS, "collect_search.py")] + sub_args)
     run_root = None
     pointer = os.path.join(a.root, f".douyin-crawl-current-{a.account}.json")

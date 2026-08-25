@@ -9,6 +9,13 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.9.10] - 2026-08-25
+
+### Added
+- **评论翻页热度水位早停**：实测抖音评论接口为固定智能排序（`sort_type`/`sort_order_by` 等 5 种排序参数变体全部被服务端忽略，返回顺序完全一致）——高赞集中在前部、页码越深越冷。现 `collect_search` 新增 `--min-likes/--min-replies`（默认与三级门槛同源 1000/50）：某页最高赞低于门槛且最高回复也低于门槛时，立即停止该视频后续翻页（`MC_PAGE_HEAT_FLOOR_*` env + 幂等 patch 注入 client.py）。传 `0` 关闭。
+
+### Changed
+- `run_daily` 采集时自动把三级门槛阈值透传给评论翻页水位，冷尾视频从「翻满 max_count」变为「按热度止损」。
 ## [0.9.9] - 2026-08-25
 
 ### Fixed
