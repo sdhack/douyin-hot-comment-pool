@@ -56,7 +56,7 @@ def accounts_top(conn, top=10):
                COUNT(DISTINCT c.comment_id) AS comments
         FROM accounts a
         LEFT JOIN videos v   ON v.creator_hash = a.creator_hash
-        LEFT JOIN comments c ON c.creator_hash = a.creator_hash
+        LEFT JOIN comments c ON c.aweme_id = v.aweme_id
         GROUP BY a.creator_hash
         ORDER BY comments DESC, videos DESC
         LIMIT ?""", (top,)).fetchall()

@@ -297,6 +297,13 @@ def main():
     _set_pointer(a.root, a.account, run_root)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     batch_id = f"{a.account}-{stamp}"  # Bug-5: 唯一批次号
+    conn.execute(
+        """INSERT INTO batches(batch_id, run_root, account, keyword, started_at,
+                  status, phase)
+           VALUES(?,?,?,?,datetime('now','localtime'),'running','preparing')
+           ON CONFLICT(batch_id) DO UPDATE SET status='running', phase='preparing', error=''""",
+        (batch_id, run_root, a.account, ",".join(kws)))
+    conn.commit()
 
     env = dict(os.environ)
     env["MC_CURSOR_DIR"] = os.path.join(save_dir, "cursor")
@@ -324,18 +331,22 @@ def main():
 
     # ---- A|阶段1: 单进程多关键词搜索（不抓评论，快速扫场）；--skip-search 复用已有数据 ----
     if a.skip_search:
+        _db.update_batch(conn, batch_id, status="collecting", phase="select")
         _log("[A|阶段1] --skip-search: 复用当前 run_root 已抓视频数据，跳过搜索")
         phase_t["phase1-search"] = 0.0
     else:
+        _db.update_batch(conn, batch_id, status="collecting", phase="search")
         _log(f"[A|阶段1] 合并 {len(kws)} 词单进程搜索: {' | '.join(kws)}")
         rc1 = mc_phase("phase1-search", "search", ",".join(kws), False, a.per_keyword)
         if rc1 != 0:
+            _db.update_batch(conn, batch_id, status="failed", phase="search", error=f"collector_rc={rc1}", finished=True)
             _log(f"[FAIL] 搜索阶段退出码 {rc1}")
             return 1
         _log(f"[A|阶段1] 完成，用时 {phase_t['phase1-search']}s")
 
     # ---- B|阶段2: 本地选片 ----
     t = time.monotonic()
+    _db.update_batch(conn, batch_id, status="selecting", phase="select")
     picks, sstat = select_videos(save_dir, conn, a.top_n, a.min_video_likes,
                                  need_comments=a.comments_count)
     phase_t["phase2-select"] = round(time.monotonic() - t, 2)
@@ -343,11 +354,13 @@ def main():
          f"≥{a.min_video_likes}赞={sstat['hot_ge_threshold']} → 定向Top{len(picks)} "
          f"点赞Top5={sstat['likes_top']}")
     if not picks:
+        _db.update_batch(conn, batch_id, status="empty", phase="select", error="no_new_videos", finished=True)
         _log("[B|阶段2] 无新视频可选（全部已在库或未抓到），结束")
         return 2
 
     # ---- B|阶段3: detail 模式定向抓评论 ----
     _log(f"[B|阶段3] 对 {len(picks)} 个高赞视频定向抓评论（detail/specified_id）")
+    _db.update_batch(conn, batch_id, status="collecting", phase="detail")
     rc2 = mc_phase("phase3-detail", "detail",
                    ",".join(x["aweme_id"] for x in picks), True, len(picks))
     if rc2 != 0:
@@ -355,6 +368,7 @@ def main():
 
     # ---- D|阶段4: 聚合→三级筛选→入库（原始+hits，配额封顶）----
     t = time.monotonic()
+    _db.update_batch(conn, batch_id, status="screening", phase="three_gate")
     crawl_stat = {"videos": 0, "comments": 0}
     try:
         res = _loader.import_batch(conn, save_dir, keyword=",".join(kws),
@@ -365,6 +379,7 @@ def main():
              f" / 作者 {crawl_stat.get('accounts', 0)}")
     except Exception as e:
         _log(f"[入库失败] {e}")
+        _db.update_batch(conn, batch_id, status="failed", phase="raw_import", error=str(e), finished=True)
 
     ag = os.path.join(run_root, "comments_aggregated.json")
     if os.path.isfile(ag):
@@ -411,6 +426,9 @@ def main():
         for c in picks_hits[:5]:
             _log(f"   ★[{c['score']:>2}] 赞{c['like_count']} {c['content'][:34]}")
     _log(f"[下一阶段] python sqlite/report.py --hot --top 20")
+    _db.update_batch(conn, batch_id, status="completed", phase="done", finished=True,
+                     videos_count=crawl_stat.get("videos", 0),
+                     comments_count=crawl_stat.get("comments", 0))
     return 0 if n_hit else 2
 
 

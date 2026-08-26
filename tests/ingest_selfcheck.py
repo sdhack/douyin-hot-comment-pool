@@ -7,10 +7,13 @@
 """
 import argparse
 import datetime
+import io
 import json
 import os
+import shutil
 import sys
 import tempfile
+from contextlib import redirect_stdout
 
 SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SKILL, "tools"))
@@ -102,14 +105,40 @@ def main():
     ok("配额封顶：quota=1 只入 1 条", n_hit2 == 1 and row2["new_hits"] == 1,
        (n_hit2, row2["new_hits"]))
 
-    # 3) 空结果目录：无 jsonl → 状态空结果 + 目录仍被清理
+    # 3) 采集中的增量筛选：无需等待关键词结束即可命中并触发配额闸门
+    dbp_live = os.path.join(tmp, "live.db")
+    conn_live = run_daily._open_db(dbp_live)
+    rr_live = _mk_run(tmp, account="live")
+    live_args = _args(tmp, quota=1, account="live")
+    live_state = {"videos": 0, "comments": 0, "candidates": 0, "hits": 0, "sample": ""}
+    reached = run_daily._incremental_screen(conn_live, live_args, "测试词", "live-batch",
+                                            rr_live, live_state)
+    live_hits = conn_live.execute("SELECT COUNT(*) AS n FROM hits").fetchone()["n"]
+    ok("增量筛选达到配额即报告停止", reached and live_hits == 1 and live_state["hits"] == 1
+       and live_state["candidates"] == 3 and "赞/" in live_state["sample"],
+       (reached, live_hits, live_state["sample"][:24]))
+    live_state["last_video"] = "视频甲"
+    live_state["last_video_meta"] = ("作者甲", 10000, 120)
+    live_state["last_comment"] = "这是一条用于验证 Markdown 汇报的长评论"
+    live_state["last_comment_meta"] = (5200, 300)
+    report_buf = io.StringIO()
+    with redirect_stdout(report_buf):
+        run_daily._print_live_report(conn_live, live_args, "测试词", live_state)
+    report = report_buf.getvalue()
+    ok("实时汇报为 Markdown 且包含视频/评论明细",
+       "### 抖音爆款评论采集进度" in report and "| 最新视频 |" in report
+       and "| 最新评论 |" in report and "视频甲" in report and "5200" in report,
+       report[:80])
+    shutil.rmtree(rr_live)
+
+    # 4) 空结果目录：无 jsonl → 状态空结果 + 目录仍被清理
     rr3 = os.path.join(tmp, "t3-20260823-130000")
     os.makedirs(os.path.join(rr3, "crawl_t3", "cursor"), exist_ok=True)
     row3 = run_daily._ingest_keyword_run(conn2, _args(tmp, quota=5), "测试词", rr3)
     ok("空结果目录被清理", row3["status"] == "空结果" and not os.path.isdir(rr3),
        row3["status"])
 
-    # 4) 跨天去重：历史（非当日）已命中的评论不再重复入选，也不占用当日配额
+    # 5) 跨天去重：历史（非当日）已命中的评论不再重复入选，也不占用当日配额
     dbp4 = os.path.join(tmp, "t4.db")
     conn4 = run_daily._open_db(dbp4)
     rr4 = _mk_run(tmp, account="t4")
@@ -128,7 +157,7 @@ def main():
         "SELECT COUNT(*) AS n FROM hits WHERE comment_id='c0' AND hit_date=?", (today,)).fetchone()["n"]
     ok("跨天去重：历史命中(c0)不再入选，其余照常", c0_today == 0 and row4["new_hits"] == 2,
        (row4["new_hits"], n_hit4, c0_today))
-    conn.close(); conn2.close(); conn4.close()
+    conn.close(); conn2.close(); conn_live.close(); conn4.close()
 
     print()
     if FAIL:

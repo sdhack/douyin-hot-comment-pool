@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
 """采集档位预设：--preset 一键速调 speed / 随机延时 / 采集面大小。
 
-safe=慢档（最稳，风控压力最小）   fast=快档（约数倍提速，风控暴露面更大）。
-独立参数（--speed / --sleep-* / --per-keyword / --comments-count）若被显式传入，
+safe=慢档（最稳，风控压力小）   ultra=超稳档（长跑/风控期用，间隔最大）
+fast=快档（约数倍提速，风控暴露面更大）。
+独立参数（--speed / --sleep-* / --per-keyword / --comments-count / --kw-gap）若被显式传入，
 优先级高于 preset；preset 只填充未被用户显式指定的字段。
 """
 PRESETS = {
-    "safe": dict(speed="safe", sleep_min=3, sleep_max=8, per_keyword=10, comments_count=30),
-    "fast": dict(speed="fast", sleep_min=1, sleep_max=3, per_keyword=10, comments_count=30),
+    # per_keyword=0 = 不限条数：由按赞止停(视频1万赞门槛)或搜索空页自然结束，不再按档位固定 10/15 条
+    "safe": dict(speed="safe", sleep_min=6, sleep_max=15, per_keyword=0, comments_count=30),
+    "ultra": dict(speed="safe", sleep_min=12, sleep_max=28, per_keyword=0,
+                  comments_count=30, kw_gap=180),
+    "fast": dict(speed="fast", sleep_min=2, sleep_max=6, per_keyword=0, comments_count=30),
 }
 
 
