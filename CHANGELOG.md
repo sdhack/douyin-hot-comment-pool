@@ -9,6 +9,12 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.10.4] - 2026-08-26
+
+### Docs
+- 补充 SQLite 批次状态字段、实时查询示例和失败批次恢复流程。
+- 明确 `status/phase/last_progress_at` 是每分钟汇报的事实来源，避免只依赖后台进程状态。
+
 ## [0.10.3] - 2026-08-26
 
 ### Changed

@@ -141,6 +141,16 @@ python %POOL%\tools\run_daily_v2.py --root <工作根> --account <slug> ^
 连续两分钟没有任何计数变化时，检查子进程、最近日志、采集目录和 SQLite；空结果率达到 50% 时暂停后续关键词并报告疑似软限流。禁止只说“后台运行中”“一切正常”或只给累计耗时而不提供增量和判断依据。
 
 SQLite 是长期主库，JSONL 只作为采集期间的临时 staging 和入库失败后的重放现场；导入成功后删除 JSONL，失败时保留对应批次目录。
+
+#### 批次状态查询与恢复
+
+运行中可直接查询最近批次，作为每分钟汇报的事实来源：
+
+```bat
+python -c "import sqlite3;c=sqlite3.connect(r'%USERPROFILE%\.trae-cn\skills\douyin-hot-comment-pool\sqlite\douyin_hotpool.db');c.row_factory=sqlite3.Row;print([dict(r) for r in c.execute('select batch_id,keyword,status,phase,videos_count,comments_count,skipped_count,retry_count,last_progress_at,error from batches order by started_at desc limit 5')])"
+```
+
+状态含义：`collecting` 采集、`ingesting` 原始入库、`screening` 三级筛选、`cleaning` 清理、`completed` 完成、`empty` 无产物、`failed` 失败。`last_progress_at` 超过两分钟未更新时，先检查进程和采集目录；`failed` 批次保留 JSONL，可用 `python sqlite\loader.py --dir <批次目录> --account <slug> --keyword <词>` 重放入库，确认成功后再清理现场。
 | 🖥️ **默认有头采集** | CDP 会话默认有头（弹窗可见浏览器），重登后绑定指纹防空响应；后台无痕需显式 `--headless` |
 
 ---

@@ -145,6 +145,8 @@ batches(batch_id PK, 采集时间/词/视频/评论/状态/阶段/最后进度/�
 
 SQLite 是长期主库，JSONL 只作为采集期间的临时 staging 和入库失败后的重放现场；导入成功后删除 JSONL，失败时保留对应批次目录。`batches.status/phase/last_progress_at` 是运行监控的事实来源，旧库由 `db.ensure_schema()` 自动补列；SQLite 连接使用 WAL、`synchronous=NORMAL` 和 30 秒忙等待，允许进度查询与写入并存。
 
+运行中查询最近批次时读取 `batch_id/keyword/status/phase/videos_count/comments_count/skipped_count/retry_count/last_progress_at/error`；`last_progress_at` 超过两分钟未更新必须检查子进程、日志、采集目录和数据库。失败批次保留 JSONL，可用 `sqlite/loader.py --dir` 重放；重放成功后才清理现场。
+
 - **达标即停是硬保证**：`run_daily` 在启动时与**每个关键词开抓前**都查 `hits` 表当日（`hit_date=今天`）已入选数，已满 `quota` 立即停止后续采集，不会重复抓/重复筛。
 - **入库即唯一数据落点**：逐词实时幂等写入 `accounts/videos/comments/ancestry/batches`，精选命中写 `hits`；筛选全程在内存完成，运行目录用后即删——工作根下不残留任何采集 JSON（入库失败时保留现场便于排障）。
 - **已采视频跳过**：每词开抓前从库导出「已有评论的视频 ID」（临时 `.hcp-skip-<account>.txt`，用后即删），经 MediaCrawler `MC_SKIP_FILE` 钩子跳过重复视频的评论重抓（视频信息仍入库更新）；空库自动不启用，patch 幂等且 env 未设置时零行为变化，不影响本机其他 MediaCrawler 项目。
