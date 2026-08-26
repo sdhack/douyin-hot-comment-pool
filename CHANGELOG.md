@@ -9,6 +9,13 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.10.1] - 2026-08-26
+
+### Fixed
+- 修复 `SKILL.md` frontmatter 缺少结束分隔线、正文粘入 `description` 的发布包问题。
+- 移除当前 Codex 校验器不支持的 frontmatter `version` 字段；版本仍由 `agents/openai.yaml`、`manifest.json` 和本变更记录统一维护。
+- 增加维护文档中的 frontmatter 兼容性约束，避免技能文件存在但无法出现在技能列表。
+
 ## [0.10.0] - 2026-08-26
 
 ### Changed
