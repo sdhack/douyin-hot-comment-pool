@@ -7,12 +7,14 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.10.7-blue)](CHANGELOG.md)
+[![Skill v](https://img.shields.io/badge/Skill-v0.10.8-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **六层智能漏斗 · 单场 4 小时无人值守沉淀 100 条爆款 · 零 JSON 残留 · 跨 Agent 可移植**
 
 `按赞排序` → `每页15条` → `已采去重` → `抓完翻页` → `低于1万赞截断` → `评论热度早停` → `三级门槛筛选` → `配额达标即停`
+
+> 生产入口采用固定策略：持续翻页到自然停止条件，仅 `--quota` 可调。
 
 </div>
 
@@ -191,14 +193,13 @@ python sqlite\db.py --init     REM 首次建库（库文件不入版本库，ini
 <mediacrawler>\.venv\Scripts\python.exe -m playwright install chromium --only-shell
 ```
 
-### 1️⃣ 日常推荐：首挖新词（按赞止停）
+### 1️⃣ 生产采集：固定策略、仅调整爆款池配额
 
 ```bat
 set POOL=%~dp0
-REM 按赞降序抓到首个低于 1 万赞的视频即结束本词——大词自动多抓、小词自动早收
-REM ultra 超稳档：每请求 12-28s 抖动＋风控期最稳；默认即有头绑指纹
+REM 按赞降序持续翻页；首个低于 1 万赞的视频结束当前词，达到 quota 停止队列
 python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
-  --keywords "新词甲;新词乙" --quota 5 --preset ultra --stop-at-like-floor
+  --keywords "新词甲;新词乙" --quota 5
 ```
 
 ### 2️⃣ 经典模式：广撒网固定采样 + 冲量
@@ -231,17 +232,17 @@ python sqlite\report.py --threads --cid <评论id>  REM 某爆款的讨论串
 
 ---
 
-## 📚 三级门槛参数
+## 📚 固定筛选门槛
 
-| 门槛 | 参数 | 默认 | 说明 |
-|------|------|------|------|
-| ① 高互动 | `--min-likes` / `--min-replies` | `1000` / `50` | 点赞**或**回复任一达到即过；同时用作评论翻页热度水位 |
-| ② 字数 | `--min-len` | `30` | 去符号 / 去 emoji 后有效字数，过滤短评 |
-| ③ 可成文性 | `--min-score` | `55` | 规则评分（钩子/情绪/具体意象/数字/行动主体/疑问）＋口水词排除 |
-| 视频门槛 | `--video-min-likes` | `10000` | 视频级点赞硬门槛（二次复活机制见特性表） |
-| 每日配额 | `--quota` | `5` | 每日达标即停上限（冲量可调大到 100+） |
+| 门槛 | 固定值 | 说明 |
+|------|------|------|
+| ① 高互动 | 1000 赞或 50 回复 | 点赞**或**回复任一达到即过；同时用作评论翻页热度水位 |
+| ② 字数 | 30 | 去符号 / 去 emoji 后有效字数，过滤短评 |
+| ③ 可成文性 | 55 分 | 规则评分（钩子/情绪/具体意象/数字/行动主体/疑问）＋口水词排除 |
+| 视频门槛 | 10000 赞 | 视频级点赞硬门槛；首个低于门槛的视频结束当前词 |
+| 每日配额 | `--quota`，默认 5 | 唯一可调参数，达到即停止整个关键词队列 |
 
-> 全部阈值可用命令行微调，适配你的行业 / 平台 / 爆款标准。
+> 生产入口拒绝覆盖上述门槛、频率、排序和翻页参数。
 
 ---
 
@@ -272,7 +273,7 @@ python sqlite\report.py --threads --cid <评论id>  REM 某爆款的讨论串
 
 ## 🛡️ 合规边界
 
-- 只抓**公开可浏览**评论区；频率三重防护：`safe`（并发1 + 每请求 6-15s + 词间 90s）、`ultra` 超稳档（12-28s + 词间 180s，风控期用）、`fast`（并发3 + 2-6s，风控面大慎用）
+- 只抓**公开可浏览**评论区；生产频率固定为并发 1、每请求 6-15 秒随机等待、词间休息 90 秒，不允许通过运行参数提速或降低门槛
 - 爆款评论用于**借鉴结构 / 钩子、重写表达**落到 IP 账号，不建议照搬商用（版权风险）
 - 采集数据由数据拥有方自行保管，仓库与分发包均不携带真实数据
 

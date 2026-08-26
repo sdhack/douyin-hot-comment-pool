@@ -10,19 +10,11 @@
   5) 零 JSON 残留：入库成功后整段运行目录（含 MediaCrawler jsonl/cursor/指针）随即删除，
      数据只落 SQLite；入库失败则保留现场便于排障；
   6) 末尾输出当日采集报告（逐词统计/当日命中明细/库内累计/停止原因）。
-  --offline-source 仅排障：喂存量聚合 JSON 跳过采集（同样只入库，不写 json）。
+  生产策略固定：仅允许调整当日配额 QUOTA。
 
 用法（主路径-实时采集）:
   python tools/run_daily.py --root <工作根> --account <slug> --keywords "甲;乙;丙"
-      [--preset safe|fast]            # 默认 safe=慢档(并发1/延时3-8s,最稳)；fast=快档(并发3/延时1-3s,提速)
-      # 默认即有头浏览（绑定指纹防空响应）；后台无痕用 --headless
-      # 默认 per-keyword=0 不限条数，需配合 --stop-at-like-floor 按视频一赞门槛自然结束
-      # 显式 --speed/--sleep-*/--per-keyword/--comments-count 会覆盖 preset
-      [--min-likes 1000] [--min-replies 50] [--min-len 30] [--min-score 55]
-      [--quota 5] [--dry-run]
-用法（调试-离线）:
-  python tools/run_daily.py --root <根> --account pool --keywords "<任一>" --per-keyword 0
-      --offline-source <聚合 comments.json> --quota 5
+      [--quota 5]
 
 产物: 技能内置 SQLite（sqlite/douyin_hotpool.db）——唯一数据落点，磁盘无 JSON 残留
       - 采集原始数据 → accounts / videos / comments / ancestry / batches（loader 幂等）
@@ -55,6 +47,59 @@ sys.path.insert(0, _SQLITE_DIR)
 import db as _db  # noqa: E402
 import loader as _loader  # noqa: E402
 import hits_backfill as _hits  # noqa: E402
+
+
+# 生产采集策略固定，避免调用方通过临时调参改变覆盖面、频率或筛选口径。
+# 可变输入仅保留工作目录、账号、关键词和当日爆款池配额。
+FIXED_REALTIME_POLICY = {
+    "preset": "safe",
+    "per_keyword": 0,
+    "comments_count": 30,
+    "speed": "safe",
+    "lt": "qrcode",
+    "sleep_min": 6,
+    "sleep_max": 15,
+    "retry_fail": 2,
+    "stop_at_like_floor": True,
+    "sort_by_likes": True,
+    "search_sort": 1,
+    "query_correct": 1,
+    "headless": False,
+    "kw_gap": 90,
+    "max_min": 45,
+    "min_likes": 1000,
+    "min_replies": 50,
+    "video_min_likes": 10000,
+    "min_len": 30,
+    "min_score": 55,
+    "stale_stop_sec": 120,
+}
+
+LOCKED_REALTIME_OPTIONS = frozenset(FIXED_REALTIME_POLICY) | {
+    "cookies",
+    "db",
+    "dry_run",
+    "offline_source",
+}
+
+
+def _enforce_fixed_realtime_policy(args, argv):
+    """Reject runtime tuning and apply the single approved crawl profile."""
+    specified = _presets.parse_present_flags(argv)
+    locked = sorted(name.replace("_", "-") for name in specified & LOCKED_REALTIME_OPTIONS)
+    if locked:
+        sys.exit(
+            "[ERR] 采集参数已固化，仅允许调整 --quota；"
+            f"不可传入: {', '.join('--' + name for name in locked)}"
+        )
+    if args.quota <= 0:
+        sys.exit("[ERR] --quota 必须为正整数")
+    for name, value in FIXED_REALTIME_POLICY.items():
+        setattr(args, name, value)
+    print(
+        "[固定采集策略] safe | 最多点赞排序 | 不限翻页 | 万赞止停 | "
+        "30评论/视频 | 三级筛选 | 120s熔断；仅 --quota 可调"
+    )
 
 
 def _open_db(db_path=None):
@@ -214,7 +259,7 @@ def main():
     ap.add_argument("--offline-source", default=None,
                     help="仅调试：喂存量聚合 JSON 做筛选（跳过采集），日常主路径不要用")
     a = ap.parse_args()
-    _presets.apply_preset(a, sys.argv)
+    _enforce_fixed_realtime_policy(a, sys.argv)
 
     conn = _open_db(a.db)  # 采集数据默认入库 SQLite
     # 主路径：逐关键词 实时采集→实时入库→内存筛选→hits→清理 JSON→达标即停→报告
