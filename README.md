@@ -335,3 +335,8 @@ douyin-hot-comment-pool/
 Made with ❤️ for 让爆款评论不再碰运气
 
 </div>
+
+
+## 免责声明
+
+使用本项目/技能前必须阅读仓库根目录的 [DISCLAIMER.md](DISCLAIMER.md)。使用者自行承担输入、输出、数据处理和发布责任。

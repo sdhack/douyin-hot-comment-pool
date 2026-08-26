@@ -3,6 +3,11 @@
 本技能采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 规范，版本遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+## 文档更新 - 2026-08-26
+
+- 新增统一 DISCLAIMER.md，明确法律、平台、隐私、版权和专业复核责任边界。
+- README 与 SKILL.md 增加免责声明入口，版本元数据同步递增。
+
 
 ### 规划中
 - 关键词命中占比分析，自动推荐当日最易出爆款的词

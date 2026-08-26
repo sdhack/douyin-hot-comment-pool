@@ -1,6 +1,6 @@
 # 版本维护：每次更新此技能时，必须同步提升下方 display_name 中的版本号。
 interface:
-  display_name: "GM 抖音爆款长评采集 V0.10.6"
+  display_name: "GM 抖音爆款长评采集 V0.10.7"
   short_description: "采集并筛选可改写为文案的高互动抖音长评论"
   default_prompt: "使用 $douyin-hot-comment-pool 挖掘一批可用于文案创作的抖音高互动长评论。"
 
