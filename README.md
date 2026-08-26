@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.10.0-blue)](CHANGELOG.md)
+[![Skill v](https://img.shields.io/badge/Skill-v0.10.2-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **六层智能漏斗 · 单场 4 小时无人值守沉淀 100 条爆款 · 零 JSON 残留 · 跨 Agent 可移植**
@@ -133,6 +133,12 @@ python %POOL%\tools\run_daily_v2.py --root <工作根> --account <slug> ^
 | 🧹 **磁盘零 JSON 残留** | 每词入库后运行目录整段删除，数据唯一落点是 SQLite；入库失败才保留现场 |
 | 🛑 **达标即停硬保证** | 启动时 + 每词开抓前双重复查配额，一满立即停 |
 | 📊 **当日采集报告** | 逐词统计 / 命中明细（评分·赞回·摘录）/ 库内累计 / 耗时 / 停止原因 |
+
+### 运行中进度汇报
+
+实时采集以前台可轮询方式运行。执行期间每 60 秒汇报一次“本分钟增量 + 累计漏斗 + 当前阶段 + 下一检查点”，并在关键词切换、重试、空结果、入库、清理、配额达标和异常退出时即时汇报。每分钟至少展示视频数、评论数、命中数、已采跳过数、重试数和配额进度；没有新增时必须说明是在请求延时、词间休息、登录/浏览器、接口空桶、重试还是入库等待。
+
+连续两分钟没有任何计数变化时，检查子进程、最近日志、采集目录和 SQLite；空结果率达到 50% 时暂停后续关键词并报告疑似软限流。禁止只说“后台运行中”“一切正常”或只给累计耗时而不提供增量和判断依据。
 | 🖥️ **默认有头采集** | CDP 会话默认有头（弹窗可见浏览器），重登后绑定指纹防空响应；后台无痕需显式 `--headless` |
 
 ---
