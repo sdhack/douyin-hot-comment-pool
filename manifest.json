@@ -1,6 +1,6 @@
 {
   "name": "douyin-hot-comment-pool",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "owner": "Gao Ming",
   "updated_at": "2026-08-26",
   "status": "active",
@@ -9,7 +9,7 @@
   "context_budget_tier": "production",
   "review_cadence": "monthly",
   "skill_archetype": "automation-pipeline",
-  "description": "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、已采视频自动跳过重复抓取、磁盘零 JSON 残留、每日达标即停并输出当日报告。",
+  "description": "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、批次状态可监控、已采视频自动跳过重复抓取、磁盘零 JSON 残留、每日达标即停并输出当日报告。",
   "job_to_be_done": "猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材",
   "default_prompt": "Use $douyin-hot-comment-pool when you need to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。",
   "activation_mode": "manual",
@@ -85,6 +85,6 @@
     "file_write": "写本地 SQLite（douyin_hotpool.db）；采集数据默认入库，不写 pool/<account>.json",
     "subprocess": "采集时直接调用本机 MediaCrawler",
     "interactive": "首次实时采集需扫码登录一次",
-    "compliance": "仅抓公开可浏览评论区，控制采集频率避免风控；爆款评论用于借鉴结构/钩子、重写表达，不建议照搬商用（版权风险）"
+    "compliance": "仅抓公开可浏览评论区，控制采集频率避免风控；使用者自行承担平台规则、隐私、版权、凭据和数据处理责任；爆款评论用于借鉴结构/钩子、重写表达，不建议照搬商用"
   }
 }

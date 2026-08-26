@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.10.4-blue)](CHANGELOG.md)
+[![Skill v](https://img.shields.io/badge/Skill-v0.10.6-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **六层智能漏斗 · 单场 4 小时无人值守沉淀 100 条爆款 · 零 JSON 残留 · 跨 Agent 可移植**
@@ -274,7 +274,7 @@ python tests\sqlite_selfcheck.py    REM SQLite 全链路端到端自测（9 项�
 python tests\ingest_selfcheck.py    REM 实时入库管线自测（8 项）
 ```
 
-覆盖：内存 top-N 排序回归 → 实时入库 → 三级门槛 → 配额封顶 → 目录清理 → 空结果清理 → **跨天去重**。全部离线可跑。✓（v0.9.13 全通过）
+覆盖：内存 top-N 排序回归 → 实时入库 → 三级门槛 → 配额封顶 → 目录清理 → 空结果清理 → **跨天去重** → 批次状态与旧库迁移。全部离线可跑。
 
 ---
 
@@ -285,7 +285,7 @@ douyin-hot-comment-pool/
 ├── SKILL.md                    # 技能主规范（入口）
 ├── manifest.json               # 技能元数据 / 依赖 / 权限
 ├── README.md                   # 项目说明（本文件）
-├── CHANGELOG.md                # 版本变更（0.9.0 → 0.9.13 完整演进）
+├── CHANGELOG.md                # 版本变更（0.7.0 → 当前版本）
 ├── SECURITY.md                 # 安全边界与漏洞报告
 ├── MAINTENANCE.md              # 维护手册（版本同步 / 编码规范）
 ├── agents/openai.yaml          # 列表展示名（V 版本号随发版同步）
@@ -299,11 +299,11 @@ douyin-hot-comment-pool/
 │   ├── aggregate_comments.py   # 内存聚合 aggregate_paths 主路径 + CLI 调试
 │   └── _presets.py             # 档位预设（safe / ultra / fast）
 ├── sqlite/
-│   ├── db.py                   # 建库建表（6表+3视图）
+│   ├── db.py                   # 建库建表（6表+3视图，含 WAL/旧库迁移）
 │   ├── loader.py               # 幂等导入（batch_id 逐词记账）
 │   ├── hits_backfill.py        # 存量命中回流
 │   ├── report.py               # 汇总 / 爆款榜 / 账号榜 / 批次 / 讨论串
-│   └── douyin_hotpool.db       # 本地数据中心（不入版本库）
+│   └── douyin_hotpool.db       # 本地数据中心（不入版本库；运行时生成）
 └── tests/
     ├── selfcheck.py            # 三级门槛自测
     ├── sqlite_selfcheck.py     # SQLite 端到端自测

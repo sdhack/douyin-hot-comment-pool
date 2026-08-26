@@ -29,6 +29,7 @@ python tests\sqlite_selfcheck.py   REM SQLite 全链路端到端（9 项）
 要求：
 - **新增/修改筛选阈值、评分逻辑** → 补充 `tests/selfcheck.py` 断言。
 - **改动 SQLite schema / 导入 / 视图** → 补充 `tests/sqlite_selfcheck.py` 断言。
+- **改动批次状态、JSONL 生命周期或进度汇报** → 同步更新 README / SKILL.md / MAINTENANCE.md，并验证旧库可由 `db.ensure_schema()` 自动迁移。
 - 提交前两套自测必须 100% PASS。
 
 ## 🤝 如何贡献
