@@ -295,7 +295,20 @@ def _export_skip_file(conn, root, account):
     return p
 
 
-def _ingest_keyword_run(conn, a, kw, run_root):
+def _begin_batch(conn, a, kw, skipped_count=0):
+    bid = f"{a.account}.{kw}.{datetime.datetime.now().strftime('%H%M%S')}"
+    conn.execute(
+        """INSERT INTO batches(batch_id, run_root, account, keyword, started_at,
+                  status, phase, skipped_count)
+           VALUES(?,?,?,?,datetime('now','localtime'),'running','collecting',?)
+           ON CONFLICT(batch_id) DO UPDATE SET status='running', phase='collecting',
+                  skipped_count=excluded.skipped_count, error=''""",
+        (bid, a.root, a.account, kw, skipped_count))
+    conn.commit()
+    return bid
+
+
+def _ingest_keyword_run(conn, a, kw, run_root, bid=None):
     """单关键词实时入库：loader 导入→内存聚合+三级筛选→hits(配额封顶)→清理运行目录。
 
     返回报表行 dict（kw/videos/comments/new_hits/status/picks/cleaned）。
@@ -303,6 +316,8 @@ def _ingest_keyword_run(conn, a, kw, run_root):
     """
     row = {"kw": kw, "videos": 0, "comments": 0, "new_hits": 0,
            "status": "空结果", "note": "", "picks": [], "cleaned": False}
+    if not bid:
+        bid = _begin_batch(conn, a, kw)
     crawl_dir = os.path.join(run_root, "crawl_" + a.account)
     comm_fps = sorted(glob.glob(os.path.join(crawl_dir, "**", "search_comments_*.jsonl"),
                                 recursive=True))
@@ -314,8 +329,7 @@ def _ingest_keyword_run(conn, a, kw, run_root):
     ingested = False
     if comm_fps:
         try:
-            # batch_id 按词+时间戳区分：同账号多词不互相覆盖 batches 统计
-            bid = f"{a.account}.{kw}.{datetime.datetime.now().strftime('%H%M%S')}"
+            _db.update_batch(conn, bid, status="ingesting", phase="raw_import")
             res = _loader.import_batch(conn, crawl_dir, keyword=kw, account=a.account,
                                        batch_id=bid)
             conn.commit()
@@ -325,9 +339,11 @@ def _ingest_keyword_run(conn, a, kw, run_root):
         except Exception as e:
             row["status"] = "入库失败"
             row["note"] = str(e)
+            _db.update_batch(conn, bid, status="failed", phase="raw_import", error=str(e), finished=True)
             print(f"  [daily] 原始采集数据入库失败（保留现场不删文件）: {e}")
 
     if ingested:
+        _db.update_batch(conn, bid, status="screening", phase="three_gate")
         # 三级筛选：内存聚合（不落聚合 JSON）→ 打分 → 配额封顶写入 hits
         by_aweme, summary = aggregate_comments.aggregate_paths(comm_fps, max_n=100)
         cands = _screen(list(filter_pool.iter_records(
@@ -351,6 +367,7 @@ def _ingest_keyword_run(conn, a, kw, run_root):
         else:
             print("  [daily] 本关键词无达标入选（原始数据已入库）")
         row["status"] = "成功"
+        _db.update_batch(conn, bid, status="cleaning", phase="cleanup")
 
     # 实时清理：数据已在 SQLite（或确认本来就没数据）→ 删除整段运行目录，零 JSON 残留
     if ingested or not comm_fps:
@@ -358,6 +375,7 @@ def _ingest_keyword_run(conn, a, kw, run_root):
         row["cleaned"] = not os.path.isdir(run_root)
         if row["cleaned"]:
             print(f"  [daily] 已清理采集产物目录（数据在库，无 JSON 残留）: {run_root}")
+            _db.update_batch(conn, bid, status="completed", phase="done", finished=True)
     return row
 
 
@@ -422,16 +440,20 @@ def _run_realtime(conn, a):
         if skip_file:
             n_known = sum(1 for _ in open(skip_file, encoding="utf-8"))
             print(f"[daily] 已采视频 {n_known} 个启用跳过（重复视频不重抓评论）")
+        n_known = n_known if skip_file else 0
+        bid = _begin_batch(conn, a, kw, skipped_count=n_known)
         print(f"[daily] 采集关键词「{kw}」")
         rc, run_root = _crawl_keyword(a, kw, skip_file)
         if rc != 0:
             print(f"  [daily] 关键词「{kw}」采集退出码 {rc}；若有部分数据仍会实时入库")
+            _db.update_batch(conn, bid, status="collecting", phase="collector_exit", error=f"collector_rc={rc}")
         if not run_root or not os.path.isdir(run_root):
+            _db.update_batch(conn, bid, status="empty", phase="no_output", error=f"collector_rc={rc}", finished=True)
             rows.append({"kw": kw, "videos": 0, "comments": 0, "new_hits": 0,
                          "status": "无运行目录", "note": f"rc={rc}", "picks": [],
                          "cleaned": False})
             continue
-        rows.append(_ingest_keyword_run(conn, a, kw, run_root))
+        rows.append(_ingest_keyword_run(conn, a, kw, run_root, bid))
 
     # 收尾：删运行指针与已采跳过文件（数据全在 SQLite，控制文件也不留）
     pointer = os.path.join(a.root, f".douyin-crawl-current-{a.account}.json")

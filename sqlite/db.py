@@ -101,6 +101,11 @@ CREATE TABLE IF NOT EXISTS batches (
     finished_at    TEXT,
     videos_count   INTEGER DEFAULT 0,
     comments_count INTEGER DEFAULT 0,
+    status          TEXT DEFAULT 'running', -- running/ingesting/screening/cleaning/completed/failed/empty
+    phase           TEXT DEFAULT 'init',
+    last_progress_at TEXT,
+    retry_count     INTEGER DEFAULT 0,
+    skipped_count   INTEGER DEFAULT 0,
     error          TEXT DEFAULT '',        -- 空=成功
     source_dir     TEXT DEFAULT '',
     created_at     TEXT DEFAULT (datetime('now','localtime'))
@@ -155,17 +160,50 @@ def _dict_factory(cursor, row):
 def open_db(path=None):
     path = path or DEFAULT_DB
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = _dict_factory
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
 def ensure_schema(conn, create_views=True):
     conn.executescript(_SCHEMA)
+    # Keep existing user databases upgradeable without destructive rebuilds.
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(batches)")}
+    migrations = {
+        "status": "TEXT DEFAULT 'running'",
+        "phase": "TEXT DEFAULT 'init'",
+        "last_progress_at": "TEXT",
+        "retry_count": "INTEGER DEFAULT 0",
+        "skipped_count": "INTEGER DEFAULT 0",
+    }
+    for name, definition in migrations.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE batches ADD COLUMN {name} {definition}")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_batches_status ON batches(status, last_progress_at)")
     if create_views:
         conn.executescript(_CREATE_VIEWS)
+    conn.commit()
+
+
+def update_batch(conn, batch_id, status=None, phase=None, error=None,
+                 videos_count=None, comments_count=None, retry_count=None,
+                 skipped_count=None, finished=False):
+    """Update observable batch state; safe for minute progress polling."""
+    fields, values = ["last_progress_at=datetime('now','localtime')"], []
+    for name, value in (("status", status), ("phase", phase), ("error", error),
+                        ("videos_count", videos_count), ("comments_count", comments_count),
+                        ("retry_count", retry_count), ("skipped_count", skipped_count)):
+        if value is not None:
+            fields.append(f"{name}=?")
+            values.append(value)
+    if finished:
+        fields.append("finished_at=datetime('now','localtime')")
+    values.append(batch_id)
+    conn.execute(f"UPDATE batches SET {', '.join(fields)} WHERE batch_id=?", values)
     conn.commit()
 
 

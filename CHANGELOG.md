@@ -9,6 +9,14 @@
 - 沉淀池 → `master-copywriting` 一键改写为 IP 账号草稿
 - 沉淀池趋势看板（SQLite → HTML 报表）
 
+## [0.10.3] - 2026-08-26
+
+### Changed
+- SQLite 连接启用 `WAL`、`synchronous=NORMAL`、30 秒 `busy_timeout`，降低进度查询与采集写入互相阻塞的概率。
+- `batches` 增加 `status`、`phase`、`last_progress_at`、`retry_count`、`skipped_count`，并支持旧库在线迁移。
+- `run_daily` 与 `run_daily_v2` 写入批次生命周期和错误状态，支持每分钟汇报查询实际阶段与最后进度。
+- JSONL 继续作为临时采集缓冲；成功导入后 SQLite 是唯一长期数据源，失败时保留现场用于重放。
+
 ## [0.10.2] - 2026-08-26
 
 ### Changed

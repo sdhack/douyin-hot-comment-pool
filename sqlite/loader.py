@@ -102,7 +102,8 @@ def import_batch(conn, batch_dir, keyword="", account="", batches=True, batch_id
                VALUES(?,?,?,?,?)
                ON CONFLICT(batch_id) DO UPDATE
                  SET run_root=excluded.run_root, account=excluded.account,
-                     keyword=excluded.keyword, started_at=excluded.started_at""",
+                     keyword=excluded.keyword, started_at=excluded.started_at,
+                     status='ingesting', phase='raw_import', error=''""",
             (bid, batch_dir, account, keyword,
              datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
@@ -196,8 +197,10 @@ def import_batch(conn, batch_dir, keyword="", account="", batches=True, batch_id
 
     # 收尾批次统计
     conn.execute("""UPDATE batches SET videos_count=?, comments_count=?,
-                    finished_at=? , error='' WHERE batch_id=?""",
+                    finished_at=?, last_progress_at=?, status='ingested',
+                    phase='raw_import', error='' WHERE batch_id=?""",
                  (stats["videos"], stats["comments"],
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), bid))
     conn.commit()
     return {"batch_id": bid, "items": stats}

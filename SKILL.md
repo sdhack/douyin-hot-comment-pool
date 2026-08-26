@@ -97,7 +97,7 @@ videos(aweme_id PK → accounts, 标题/互动/来源词/各URL[仅URL不解析]
 comments(comment_id PK → videos, 内容/点赞/回复/父id/pictures仅URL/batch)
 ancestry(子→父→根, depth)          ← 讨论串
 hits(comment_id PK → comments, score, 命中理由/明细, 日期)   ← 爆款沉淀
-batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← 采集元信息
+batches(batch_id PK, 采集时间/词/视频/评论/状态/阶段/最后进度/错误) ← 采集元信息与进度心跳
 视图: vw_hot_comments(命中+视频+作者), vw_threads(讨论串层级), vw_daily_stats
 ```
 
@@ -134,7 +134,7 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
   comments   ← 采集到的全部评论
   ancestry   ← 评论上下级讨论串
   hits       ← 精选爆款命中（score/理由/日期，达标即停依据）
-  batches    ← 每次采集批次元信息（时间/词/视频/评论数）
+  batches    ← 每次采集批次元信息（时间/词/视频/评论数/状态/阶段/最后进度）
 ```
 
 - 每个关键词抓完**立即入库**（loader 幂等导入原始数据 + hits 写入选），随后整段删除该词的运行目录（MediaCrawler jsonl/cursor 一并清理）；入库失败则保留现场排障。
@@ -142,6 +142,8 @@ batches(batch_id PK, 采集时间/词/视频/评论/成功率)            ← �
 - 查看爆款榜：`python sqlite\report.py --hot`；汇总 `--stats`；讨论串 `--threads --cid <id>`。
 
 ## 关键约束（跨 Agent 复用安全）
+
+SQLite 是长期主库，JSONL 只作为采集期间的临时 staging 和入库失败后的重放现场；导入成功后删除 JSONL，失败时保留对应批次目录。`batches.status/phase/last_progress_at` 是运行监控的事实来源，旧库由 `db.ensure_schema()` 自动补列；SQLite 连接使用 WAL、`synchronous=NORMAL` 和 30 秒忙等待，允许进度查询与写入并存。
 
 - **达标即停是硬保证**：`run_daily` 在启动时与**每个关键词开抓前**都查 `hits` 表当日（`hit_date=今天`）已入选数，已满 `quota` 立即停止后续采集，不会重复抓/重复筛。
 - **入库即唯一数据落点**：逐词实时幂等写入 `accounts/videos/comments/ancestry/batches`，精选命中写 `hits`；筛选全程在内存完成，运行目录用后即删——工作根下不残留任何采集 JSON（入库失败时保留现场便于排障）。
