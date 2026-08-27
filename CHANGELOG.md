@@ -24,6 +24,16 @@
 - `tests/selfcheck.py` / `tests/sqlite_selfcheck.py`（9 PASS）/ `tests/ingest_selfcheck.py`（10 项）全部通过。
 - 参数锁边界实测：生产路径越权参数拒绝、`--quota 0` 拒绝、离线缺隔离库拒绝。
 
+## [0.10.11] - 2026-08-27
+
+### Fixed
+- `collect_search.py` 的 `ensure_mc_client_os_patch` 删除 `not-needed` 捷径：后续动态补丁（热度早停等）会向 client.py 注入 `os.getenv` 用法，不能以「当前文件是否已用 getenv」判断是否需要导入；凡缺 `import os` 一律补齐。实测修复了评论任务全部 `NameError: os` 崩溃导致零评论产出的问题。
+
+### Verified
+- 2026-08-27 真实单轮运行（关键词「养生」，生产入口 + 配额 5）：126 视频 / 704 条唯一评论入 SQLite / 入池命中 2 / 磁盘零 JSON 残留 / 120 秒无增量熔断正常触发。
+- 万赞止停、页内热度早停、已采视频去重跳过均在真实日志中验证生效。
+- CDP 附着无 Chrome 环境：验证可改用 Edge（`--remote-debugging-port=9222`）完成有头采集与扫码登录。
+
 ## [Unreleased]
 
 ### 规划中

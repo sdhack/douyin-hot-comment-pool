@@ -126,7 +126,11 @@ def ensure_mc_sleep_patch(mc_root):
 
 
 def ensure_mc_client_os_patch(mc_root):
-    """修复旧版 MediaCrawler client.py 使用 os.getenv 却漏导入 os 的确定性错误。"""
+    """确保 client.py 顶部有 import os。
+
+    热度早停/纠错开关等后续动态补丁会往 client.py 注入 os.getenv 用法；
+    不能以「当前文件是否已用 os.getenv」判断是否需要导入（那会漏掉后续注入），一律缺就补。
+    """
     p = os.path.join(mc_root, "media_platform", "douyin", "client.py")
     try:
         src = open(p, encoding="utf-8-sig").read()
@@ -134,8 +138,6 @@ def ensure_mc_client_os_patch(mc_root):
         return None
     if re.search(r"(?m)^import\s+os\s*$", src):
         return "already"
-    if "os.getenv(" not in src:
-        return "not-needed"
     try:
         if not os.path.isfile(p + ".os.bak"):
             open(p + ".os.bak", "w", encoding="utf-8").write(src)
