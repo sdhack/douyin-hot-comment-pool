@@ -68,7 +68,7 @@ FIXED_REALTIME_POLICY = {
     "headless": False,
     "kw_gap": 90,
     "max_min": 45,
-    "min_likes": 1000,
+    "min_likes": 500,
     "min_replies": 50,
     "video_min_likes": 10000,
     "min_len": 20,
@@ -315,7 +315,7 @@ def main():
     ap.add_argument("--kw-gap", dest="kw_gap", type=float, default=90,
                     help="关键词轮次之间的休息秒数（加大采集间隔、降风控面；0=关闭。ultra 档默认 180）")
     ap.add_argument("--max-min", type=float, default=45)
-    ap.add_argument("--min-likes", type=int, default=1000)
+    ap.add_argument("--min-likes", type=int, default=500)
     ap.add_argument("--min-replies", type=int, default=50)
     ap.add_argument("--video-min-likes", type=int, default=10000,
                     help="抓取级视频点赞门槛：低于该赞跳过评论深挖（透传给 collect_search）")

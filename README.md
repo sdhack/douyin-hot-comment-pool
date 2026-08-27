@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.11.0-blue)](CHANGELOG.md)
+[![Skill v](https://img.shields.io/badge/Skill-v0.11.1-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **六层智能漏斗 · 单场 4 小时无人值守沉淀 100 条爆款 · 零 JSON 残留 · 跨 Agent 可移植**

@@ -621,7 +621,7 @@ def main():
                     help="搜索纠错开关：1=允许抖音纠错(默认) 0=关闭纠错（对组合词空结果可试，可能返回原始词结果）")
     ap.add_argument("--video-min-likes", dest="video_min_likes", type=int, default=10000,
                     help="视频级点赞门槛（硬编码默认1万）：低于此值的视频跳过评论抓取，二次遇到涨过门槛则正常抓取")
-    ap.add_argument("--min-likes", type=int, default=1000,
+    ap.add_argument("--min-likes", type=int, default=500,
                     help="评论翻页热度水位：页内最高赞低于此值且最高回复低于 --min-replies 时提前停止翻页")
     ap.add_argument("--min-replies", type=int, default=50,
                     help="评论翻页热度水位（回复数），配合 --min-likes 使用")

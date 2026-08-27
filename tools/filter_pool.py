@@ -13,7 +13,7 @@
 
 用法:
   python tools/filter_pool.py --in <comments.json> --out <candidates.json>
-      [--min-likes 1000] [--min-replies 50] [--min-len 30] [--min-score 55]
+      [--min-likes 500] [--min-replies 50] [--min-len 30] [--min-score 55]
       [--max-n 60] [--seed 0]
 
 输出: <candidates.json>
@@ -168,7 +168,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--in", dest="inp", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--min-likes", type=int, default=1000)
+    ap.add_argument("--min-likes", type=int, default=500)
     ap.add_argument("--min-replies", type=int, default=50)
     ap.add_argument("--min-len", type=int, default=20)
     ap.add_argument("--min-score", type=float, default=55)
