@@ -2,6 +2,28 @@
 
 本技能采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 规范，版本遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.10.10] - 2026-08-27
+
+### Fixed
+- **参数锁自锁死**：修复生产参数锁把 `--db / --dry-run / --offline-source` 一并拒绝，导致离线调试路径不可达、`tests/selfcheck.py` 无法通过的问题。现仅当显式传 `--offline-source` 时豁免参数锁，且必须同时传隔离 `--db`；生产实时路径的固定策略保持不变。
+- 配额校验（`--quota > 0`）提前到参数处理最顶端，离线分支不再旁路。
+- `_crawl_keyword` 中 `--search-sort` 可能被重复追加 2~3 次；重写为单一取值逻辑，补回 `--query-correct` 透传。
+- `collect_search.py` 剥离首行 UTF-8 BOM（对齐技能编码约定）。
+- `loader.py` 视频 UPSERT 中 `comment_count` 重复赋值去重。
+- 空结果提示不再引用不存在的 `--show-browser` 参数和被锁死的 `--preset ultra`。
+- `report.py` 作者榜参数 `--ate` 更名为 `--accounts-top`；清理未使用 import 与未关闭文件句柄。
+
+### Docs
+- SKILL.md：安装路径改为技能相对路径、示例统一 bash 语法、首次使用增加建库步骤、frontmatter 描述压缩、离线调试一节与实现对齐。
+- README.md：同步去除绝对路径引用。
+
+### Security
+- `.gitignore` 新增排除含第三方用户昵称的真实运行报告 HTML。
+
+### Verified
+- `tests/selfcheck.py` / `tests/sqlite_selfcheck.py`（9 PASS）/ `tests/ingest_selfcheck.py`（10 项）全部通过。
+- 参数锁边界实测：生产路径越权参数拒绝、`--quota 0` 拒绝、离线缺隔离库拒绝。
+
 ## [Unreleased]
 
 ### 规划中

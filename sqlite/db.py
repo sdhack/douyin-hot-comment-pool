@@ -12,7 +12,6 @@
 import argparse
 import os
 import sqlite3
-import json
 
 # 数据库目录固定在技能内，随技能整体移植（用户指定）
 _SKILL_DIR = os.path.dirname(os.path.abspath(__file__))

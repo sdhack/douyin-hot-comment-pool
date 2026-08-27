@@ -1,6 +1,6 @@
 ---
 name: "douyin-hot-comment-pool"
-description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（高互动→字数→可成文性）筛选沉淀成爆款文案素材池，逐词实时入库 SQLite、已采视频自动跳过重复抓取、磁盘零 JSON 残留、每日达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"
+description: "批量搜索抖音高赞高互动的爆款长评论，三级门槛筛选后沉淀进 SQLite 文案素材池，每日配额达标即停并输出当日报告。Invoke when user wants to 猎取抖音爆款评论、挖可做成文案的高互动长评、或每天定时刷一批能成文的评论素材。"
 ---
 
 # 抖音爆款评论池（Douyin Hot Comment Pool）
@@ -27,12 +27,12 @@ description: "搜索抖音高赞高互动的爆款长评论，经三级门槛（
 
 ### 主路径：实时 MediaCrawler 采集（日常用）
 
-单命令完成"刷一批爆款评论、每天命中 5 条即停"。生产入口已固定采集策略，除 `--quota` 外不得调整采集频率、排序、翻页范围、筛选门槛或熔断阈值：
+单命令完成"刷一批爆款评论、每天命中 5 条即停"。生产入口已固定采集策略，除 `--quota` 外不得调整采集频率、排序、翻页范围、筛选门槛或熔断阈值。**首次使用先建库**：`python <技能目录>/sqlite/db.py --init`。
 
-```bat
-set POOL=%USERPROFILE%\.trae-cn\skills\douyin-hot-comment-pool
-REM 实时采集 + 筛选 + 沉淀 + 达标即停（一键；生产参数已固定）
-python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
+```bash
+cd <技能目录>   # 即本 SKILL.md 所在的技能根目录，下同
+# 实时采集 + 筛选 + 沉淀 + 达标即停（一键；生产参数已固定）
+python tools/run_daily.py --root <工作根> --account <slug> \
   --keywords "养生;智商税;避坑;宝妈" --quota 5
 ```
 
@@ -69,26 +69,26 @@ python %POOL%\tools\run_daily.py --root <工作根> --account <slug> ^
 
 ### 离线调试
 
-生产入口不接受离线数据源、替代数据库或独立筛选阈值，防止绕过固定流程。排障需要由维护者在隔离环境中完成，不作为日常采集入口。
+生产主路径不接受替代数据源、独立数据库或独立筛选阈值，防止绕过固定流程。排障由维护者在隔离环境完成：`run_daily.py --offline-source <存量json> --db <隔离库路径>` 可喂存量数据复现筛选逻辑（必须显式传隔离 `--db`，禁止写入生产库；该入口不用于日常采集），也可直接用 `collect_search.py` 做单关键词采集探测。
 
 ### 循环利用沉淀池
 精选爆款评论**默认直接入库** `hits` 表（含打分、来源视频、理由），供 master-copywriting 按人设改写成文案；`report.py --hot` 可随时查看爆款榜。去重规则：同 `comment_id` 或同文本不重复入选。
 
 ## SQLite 数据中心（累计 + 分析）
 
-把**爆款评论池相关的搜索批次**（视频全部信息、作者、命中的评论、采集元信息）统一落入技能内置的 SQLite，便于系统化累计、关联分析与跨 Agent 移植。库文件随技能走，**整体复制技能目录即可移植到其他 agent 使用**。
+把**爆款评论池相关的搜索批次**（视频全部信息、作者、命中的评论、采集元信息）统一落入技能内置的 SQLite，便于系统化累计、关联分析与跨 Agent 移植。库文件随技能走；首次使用或复制到新环境后需先执行 `python sqlite/db.py --init` 建库（对已有库幂等），之后**整体复制技能目录即可移植到其他 agent 使用**。
 
 | 命令 | 作用 |
 |---|---|
-| `python sqlite\db.py --init` | 建库建表（6表+2视图） |
-| `python sqlite\loader.py --dir <批次目录> --account <slug> [--keyword 词]` | 幂等导入单个搜索批次 |
-| `python sqlite\loader.py --all <工作根>` | 回填工作根下所有 `hcp*` 搜索批次（幂等，重复跑不翻倍） |
-| `python sqlite\hits_backfill.py --pool <pool.json>` | 把存量 pool.json 命中回流 `hits` 表（兼容旧版产物） |
-| `python sqlite\report.py --stats / --hot / --accounts / --batches / --threads --cid` | 汇总 / 爆款榜 / 作者榜 / 批次 / 讨论串 |
+| `python sqlite/db.py --init` | 建库建表（6表+2视图） |
+| `python sqlite/loader.py --dir <批次目录> --account <slug> [--keyword 词]` | 幂等导入单个搜索批次 |
+| `python sqlite/loader.py --all <工作根>` | 回填工作根下所有 `hcp*` 搜索批次（幂等，重复跑不翻倍） |
+| `python sqlite/hits_backfill.py --pool <pool.json>` | 把存量 pool.json 命中回流 `hits` 表（兼容旧版产物） |
+| `python sqlite/report.py --stats / --hot / --accounts / --batches / --threads --cid` | 汇总 / 爆款榜 / 作者榜 / 批次 / 讨论串 |
 
-**Shell 直查**（SQLite 已内置 Python）：
-```bat
-python -c "import sqlite3;c=sqlite3.connect(r'%USERPROFILE%\.trae-cn\skills\douyin-hot-comment-pool\sqlite\douyin_hotpool.db');\
+**Shell 直查**（在技能根目录执行；SQLite 已内置 Python）：
+```bash
+python -c "import sqlite3;c=sqlite3.connect(r'sqlite/douyin_hotpool.db');\
 print([r for r in c.execute('select source_keyword,count(*) from videos group by source_keyword')])"
 ```
 
@@ -141,7 +141,7 @@ batches(batch_id PK, 采集时间/词/视频/评论/状态/阶段/最后进度/�
 
 - 每个关键词抓完**立即入库**（loader 幂等导入原始数据 + hits 写入选），随后整段删除该词的运行目录（MediaCrawler jsonl/cursor 一并清理）；入库失败则保留现场排障。
 - 运行结束删除 `.douyin-crawl-current-<account>.json` 指针，末尾打印**当日采集报告**（逐词统计/当日命中明细/库内累计/停止原因）。
-- 查看爆款榜：`python sqlite\report.py --hot`；汇总 `--stats`；讨论串 `--threads --cid <id>`。
+- 查看爆款榜：`python sqlite/report.py --hot`；汇总 `--stats`；讨论串 `--threads --cid <id>`。
 
 ## 关键约束（跨 Agent 复用安全）
 

@@ -84,16 +84,32 @@ LOCKED_REALTIME_OPTIONS = frozenset(FIXED_REALTIME_POLICY) | {
 
 
 def _enforce_fixed_realtime_policy(args, argv):
-    """Reject runtime tuning and apply the single approved crawl profile."""
+    """Reject runtime tuning and apply the single approved crawl profile.
+
+    唯一豁免：--offline-source 离线调试路径（SKILL 约定不作为日常入口），
+    允许显式调参 + 必须显式传隔离 --db，防止调试数据污染生产库。
+    """
     specified = _presets.parse_present_flags(argv)
+    if args.quota <= 0:
+        sys.exit("[ERR] --quota 必须为正整数")
+    if args.offline_source:
+        if not args.db:
+            sys.exit("[ERR] 离线调试模式（--offline-source）必须同时显式传 --db 指向隔离库")
+        print("[调试模式] 离线排障路径：参数锁不生效；该入口不得用于日常采集")
+        _presets.apply_preset(args, argv)
+        return
     locked = sorted(name.replace("_", "-") for name in specified & LOCKED_REALTIME_OPTIONS)
     if locked:
         sys.exit(
             "[ERR] 采集参数已固化，仅允许调整 --quota；"
             f"不可传入: {', '.join('--' + name for name in locked)}"
         )
-    if args.quota <= 0:
-        sys.exit("[ERR] --quota 必须为正整数")
+    for name, value in FIXED_REALTIME_POLICY.items():
+        setattr(args, name, value)
+    print(
+        "[固定采集策略] safe | 最多点赞排序 | 不限翻页 | 万赞止停 | "
+        "30评论/视频 | 三级筛选 | 120s熔断；仅 --quota 可调"
+    )
     for name, value in FIXED_REALTIME_POLICY.items():
         setattr(args, name, value)
     print(
@@ -153,7 +169,8 @@ def _run_offline(conn, source, account, quota, args, dry_run):
         return 0
 
     # 筛选
-    records = json.load(open(source, encoding="utf-8"))
+    with open(source, encoding="utf-8") as f:
+        records = json.load(f)
     if isinstance(records, dict):
         candidate_blobs = list(filter_pool.iter_records(records))
     else:
@@ -312,22 +329,22 @@ def _crawl_keyword(a, kw, skip_file=None, conn=None, batch_id=None):
     else:
         sub_args += ["--no-headless"]
     sub_args += ["--min-likes", str(a.min_likes), "--min-replies", str(a.min_replies)]
-    if getattr(a, "sort_by_likes", False):
-        sub_args += ["--search-sort", "1"]
-    # 显式 --search-sort 优先，且不被"不限条数自动最多点赞"覆盖
-    if a.search_sort is not None:
-        if a.per_keyword <= 0:
-            print("[提示] --search-sort 显式指定需配 --per-keyword>0；当前 per-keyword<=0 会强制切回最多点赞，可能覆盖预期排序")
-        sub_args += ["--search-sort", str(a.search_sort)]
+    # 排序取值：显式 --search-sort 优先；否则按赞排序开关/止停/不限条数时取最多点赞
+    sort = a.search_sort
+    if sort is None:
+        if getattr(a, "sort_by_likes", False) or getattr(a, "stop_at_like_floor", False) \
+                or a.per_keyword <= 0:
+            sort = 1
+    if a.search_sort is not None and a.per_keyword <= 0:
+        print("[提示] --search-sort 显式指定需配 --per-keyword>0；当前 per-keyword<=0 会强制切回最多点赞，可能覆盖预期排序")
+        sort = 1
+    # per_keyword<=0（不限条数）自动启用按赞止停，避免无界翻页
+    if getattr(a, "stop_at_like_floor", False) or a.per_keyword <= 0:
+        sub_args += ["--stop-at-like-floor"]
+    if sort is not None:
+        sub_args += ["--search-sort", str(sort)]
     if getattr(a, "query_correct", None) is not None:
         sub_args += ["--query-correct", str(a.query_correct)]
-    # per_keyword<=0（不限条数）自动启用按赞止停，避免无界翻页
-    if a.stop_at_like_floor or a.per_keyword <= 0:
-        if a.per_keyword <= 0 and not a.stop_at_like_floor:
-            print("[提示] per-keyword<=0 自动启用 --stop-at-like-floor，按视频一赞门槛自然结束本词")
-        sub_args += ["--stop-at-like-floor"]
-        if a.search_sort is None:
-            sub_args += ["--search-sort", "1"]
     if getattr(a, "video_min_likes", 10000) != 10000:
         sub_args += ["--video-min-likes", str(a.video_min_likes)]
     cmd = [sys.executable, os.path.join(TOOLS, "collect_search.py")] + sub_args
@@ -551,8 +568,8 @@ def _ingest_keyword_run(conn, a, kw, run_root, bid=None):
     comm_fps = sorted(glob.glob(os.path.join(crawl_dir, "**", "search_comments_*.jsonl"),
                                 recursive=True))
     if not comm_fps:
-        row["note"] = ("无评论产物；若刚扫码重登过请加 --show-browser（新会话绑定有头指纹），"
-                        "或稍后用 --preset ultra 冷却再试")
+        row["note"] = ("无评论产物；多为未登录/风控空响应，可重新扫码登录后重试，"
+                       "或用隔离排障工具 collect_search.py 单词探测")
         print(f"  [daily] {row['note']}")
 
     ingested = False

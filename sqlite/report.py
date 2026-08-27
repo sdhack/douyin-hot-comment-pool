@@ -9,8 +9,6 @@
   python report.py --batches --db <path>         采集批次历史
 """
 import argparse
-import datetime
-import json
 import os
 import sys
 
@@ -90,7 +88,7 @@ def main():
     ap.add_argument("--threads", action="store_true")
     ap.add_argument("--cid", default="")
     ap.add_argument("--accounts", action="store_true")
-    ap.add_argument("--ate", type=int, default=10)
+    ap.add_argument("--accounts-top", type=int, default=10)
     ap.add_argument("--batches", action="store_true")
     a = ap.parse_args()
     conn = open_db(a.db or DEFAULT_DB)
@@ -115,8 +113,8 @@ def main():
         for r in th:
             print("  " * (r["depth"] - 1), f"[{r['comment_id'][:10]}] {r['content'][:50]} (赞{r['like_count']})")
     if a.accounts:
-        print(f"\n== 高互动作者榜 Top {a.ate} ==")
-        for i, r in enumerate(accounts_top(conn, a.ate), 1):
+        print(f"\n== 高互动作者榜 Top {a.accounts_top} ==")
+        for i, r in enumerate(accounts_top(conn, a.accounts_top), 1):
             print(f"{i}. {r['nickname']} 视频 {r['videos']} 评论 {r['comments']}")
     if a.batches:
         print("\n== 采集批次历史 ==")

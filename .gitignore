@@ -22,3 +22,6 @@ comments_aggregated.json
 Thumbs.db
 # SQLite 库不入版本库（防采集数据外泄；克隆后 db.py --init 重建）
 sqlite/*.db
+
+# 真实运行报告含第三方用户昵称（防采集数据外泄）
+reports/*运行报告*.html

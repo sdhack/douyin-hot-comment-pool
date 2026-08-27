@@ -129,7 +129,7 @@ def import_batch(conn, batch_dir, keyword="", account="", batches=True, batch_id
                   ON CONFLICT(aweme_id) DO UPDATE SET
                     liked_count=excluded.liked_count, collected_count=excluded.collected_count,
                     comment_count=excluded.comment_count, share_count=excluded.share_count,
-                    comment_count=excluded.comment_count, nickname=excluded.nickname,
+                    nickname=excluded.nickname,
                     source_keyword=excluded.source_keyword"""  # fix Bug-10: 新关键词覆盖旧词（不再首见冻结）
     com_stmt = """INSERT INTO comments(comment_id, aweme_id, creator_hash, parent_comment_id, content,
                   like_count, sub_comment_count, create_time, last_modify_ts, pictures_url, batch_id)

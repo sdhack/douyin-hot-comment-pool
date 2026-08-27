@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=fff)](#)
 [![SQLite](https://img.shields.io/badge/SQLite-内置数据中心-003B57?logo=sqlite&logoColor=fff)](#)
 [![MediaCrawler](https://img.shields.io/badge/引擎-MediaCrawler_API直抓-orange)](#)
-[![Skill v](https://img.shields.io/badge/Skill-v0.10.8-blue)](CHANGELOG.md)
+[![Skill v](https://img.shields.io/badge/Skill-v0.10.10-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 **六层智能漏斗 · 单场 4 小时无人值守沉淀 100 条爆款 · 零 JSON 残留 · 跨 Agent 可移植**
@@ -169,7 +169,7 @@ SQLite 是长期主库，JSONL 只作为采集期间的临时 staging 和入库�
 运行中可直接查询最近批次，作为每分钟汇报的事实来源：
 
 ```bat
-python -c "import sqlite3;c=sqlite3.connect(r'%USERPROFILE%\.trae-cn\skills\douyin-hot-comment-pool\sqlite\douyin_hotpool.db');c.row_factory=sqlite3.Row;print([dict(r) for r in c.execute('select batch_id,keyword,status,phase,videos_count,comments_count,skipped_count,retry_count,last_progress_at,error from batches order by started_at desc limit 5')])"
+python -c "import sqlite3;c=sqlite3.connect(r'sqlite/douyin_hotpool.db');c.row_factory=sqlite3.Row;print([dict(r) for r in c.execute('select batch_id,keyword,status,phase,videos_count,comments_count,skipped_count,retry_count,last_progress_at,error from batches order by started_at desc limit 5')])"
 ```
 
 状态含义：`collecting` 采集、`ingesting` 原始入库、`screening` 三级筛选、`cleaning` 清理、`completed` 完成、`empty` 无产物、`failed` 失败。`last_progress_at` 超过两分钟未更新时，先检查进程和采集目录；`failed` 批次保留 JSONL，可用 `python sqlite\loader.py --dir <批次目录> --account <slug> --keyword <词>` 重放入库，确认成功后再清理现场。
