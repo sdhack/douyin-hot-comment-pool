@@ -321,7 +321,7 @@ def main():
                     help="抓取级视频点赞门槛：低于该赞跳过评论深挖（透传给 collect_search）")
     ap.add_argument("--min-len", type=int, default=30)
     ap.add_argument("--min-score", type=float, default=55)
-    ap.add_argument("--quota", type=int, default=5)
+    ap.add_argument("--quota", type=int, default=10)
     ap.add_argument("--stale-stop-sec", type=float, default=120,
                     help="实时采集连续无视频/评论/候选新增超过此秒数后自动停止；0=关闭")
     ap.add_argument("--db", default=None,
