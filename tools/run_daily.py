@@ -41,6 +41,7 @@ TOOLS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TOOLS)
 import aggregate_comments  # noqa: E402
 import filter_pool  # noqa: E402
+import ai_scorer as _ai  # noqa: E402
 import _presets  # noqa: E402
 _SQLITE_DIR = os.path.join(os.path.dirname(TOOLS), "sqlite")
 sys.path.insert(0, _SQLITE_DIR)
@@ -70,7 +71,7 @@ FIXED_REALTIME_POLICY = {
     "min_likes": 1000,
     "min_replies": 50,
     "video_min_likes": 10000,
-    "min_len": 30,
+    "min_len": 20,
     "min_score": 55,
     "stale_stop_sec": 120,
 }
@@ -96,6 +97,7 @@ def _enforce_fixed_realtime_policy(args, argv):
         if not args.db:
             sys.exit("[ERR] 离线调试模式（--offline-source）必须同时显式传 --db 指向隔离库")
         print("[调试模式] 离线排障路径：参数锁不生效；该入口不得用于日常采集")
+        args.screen_engine = "rules"   # 离线自测固定规则评分，保证确定性
         _presets.apply_preset(args, argv)
         return
     locked = sorted(name.replace("_", "-") for name in specified & LOCKED_REALTIME_OPTIONS)
@@ -198,8 +200,37 @@ def _run_offline(conn, source, account, quota, args, dry_run):
     return 0 if len(pick) else 2
 
 
+def _screen_engine():
+    """③可成文性判定引擎：配置了 API → api；否则 agent 队列（由值班 Agent 评审）。"""
+    if getattr(_ai, "available", lambda: False)():
+        return "api"
+    return "agent"
+
+
+def _emit_judge_queue(a, keyword, cands):
+    """Agent 判分模式：把过①②门槛的候选落到队列文件，供值班 Agent 评审入池。"""
+    if not cands:
+        return None
+    path = os.path.join(a.root, f".hcp-judge-{a.account}.jsonl")
+    rows = [{
+        "comment_id": c["comment_id"], "aweme_id": c["aweme_id"],
+        "content": c["content"], "like_count": c["like_count"],
+        "sub_comment_count": c["sub_comment_count"], "keyword": keyword,
+    } for c in cands[:50]]
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    os.replace(tmp, path)
+    print(f"[AI判分] 已落 Agent 评审队列 {len(rows)} 条（过①②门槛待③判定）→ {path}")
+    return path
+
+
 def _screen(blobs, args):
-    """对原始评论 blob 做三级门槛，返回已评分的候选（保留 filter_pool 打分口径）。"""
+    """三级门槛：①②固定规则；③可成文性按引擎判定（api 自动 / rules 确定性 / agent 延迟）。
+
+    agent 模式下候选 score=None，不自动入池，只进评审队列；quota 由 Agent 写 hits 后驱动。
+    """
     out = []
     for r in blobs:
         content = (r.get("content") or "").strip()
@@ -214,9 +245,6 @@ def _screen(blobs, args):
             continue
         if filter_pool._is_excluded(content):
             continue
-        score, bd, why = filter_pool._score(content)
-        if score < args.min_score:
-            continue
         out.append({
             "aweme_id": str(r.get("aweme_id") or ""),
             "comment_id": str(r.get("comment_id") or ""),
@@ -225,8 +253,34 @@ def _screen(blobs, args):
             "like_count": likes,
             "sub_comment_count": replies,
             "create_time": r.get("create_time"),
-            "len": elen, "score": score, "score_breakdown": bd, "reasons": why,
+            "len": elen, "score": None, "score_breakdown": {}, "reasons": [],
         })
+
+    engine = getattr(args, "screen_engine", None) or _screen_engine()
+    if engine == "rules":
+        for c in out:
+            score, bd, why = filter_pool._score(c["content"])
+            c.update(score=score, score_breakdown=bd, reasons=why)
+        out = [c for c in out if c["score"] >= args.min_score]
+        out.sort(key=lambda c: (c["score"], c["like_count"]), reverse=True)
+    elif engine == "api" and out:
+        try:
+            judged = _ai.judge(out)
+            for c, (score, reason) in zip(out, judged):
+                c.update(score=score,
+                         score_breakdown=_ai.breakdown(),
+                         reasons=[reason])
+            out = [c for c in out if c["score"] >= args.min_score]
+            out.sort(key=lambda c: (c["score"], c["like_count"]), reverse=True)
+        except Exception as e:
+            print(f"[AI判分] API 不可用({e})，本轮降级规则评分")
+            for c in out:
+                score, bd, why = filter_pool._score(c["content"])
+                c.update(score=score, score_breakdown=bd, reasons=why)
+            out = [c for c in out if c["score"] >= args.min_score]
+            out.sort(key=lambda c: (c["score"], c["like_count"]), reverse=True)
+    else:   # agent
+        out.sort(key=lambda c: (c["like_count"], c["sub_comment_count"]), reverse=True)
     return out
 
 
@@ -473,6 +527,12 @@ def _refresh_live_examples(conn, batch_id, state):
         state["last_comment_meta"] = (comment["like_count"] or 0, comment["sub_comment_count"] or 0)
 
 
+def _sort_cands(cands):
+    """按评分降序；未判分(agent 模式 score=None)排最后，仅作展示排序。"""
+    cands.sort(key=lambda c: (-1 if c.get("score") is None else c["score"],
+                              c["like_count"]), reverse=True)
+
+
 def _incremental_screen(conn, args, keyword, batch_id, run_root, state):
     """对当前 JSONL 快照增量入库和筛选；所有操作幂等，可重复调用。"""
     crawl_dir = os.path.join(run_root, "crawl_" + args.account)
@@ -487,7 +547,7 @@ def _incremental_screen(conn, args, keyword, batch_id, run_root, state):
         _refresh_live_examples(conn, batch_id, state)
         by_aweme, summary = aggregate_comments.aggregate_paths(files, max_n=100)
         cands = _screen(list(filter_pool.iter_records({"summary": summary, "by_aweme": by_aweme})), args)
-        cands.sort(key=lambda c: (c["score"], c["like_count"]), reverse=True)
+        _sort_cands(cands)
         state["candidates"] = len(cands)
         if cands:
             top = cands[0]
@@ -495,7 +555,8 @@ def _incremental_screen(conn, args, keyword, batch_id, run_root, state):
                                f"{top['content']}")
         ids = _today_ids(conn)
         done_ids, done_texts = _dup_guard(conn)
-        picks = [c for c in cands if not _already(ids, c) and not _is_dup(c, done_ids, done_texts)]
+        picks = [c for c in cands if c.get("score") is not None
+                 and not _already(ids, c) and not _is_dup(c, done_ids, done_texts)]
         remaining = max(0, args.quota - len(ids))
         if picks and remaining:
             n = _hits.write_hits(conn, picks[:remaining], batch_id=batch_id or "")
@@ -505,6 +566,8 @@ def _incremental_screen(conn, args, keyword, batch_id, run_root, state):
                                f"{pick['content']}")
             print(f"[实时筛选] 关键词「{keyword}」: 新候选 {len(picks)}，入池 {n}，"
                   f"累计命中 {len(_today_ids(conn))}/{args.quota}；样例={state['sample'][:80]}")
+        elif _screen_engine() == "agent":
+            _emit_judge_queue(args, keyword, cands)
         if batch_id:
             _db.update_batch(conn, batch_id, status="collecting", phase="live_screen",
                              videos_count=state["videos"], comments_count=state["comments"])
@@ -594,14 +657,14 @@ def _ingest_keyword_run(conn, a, kw, run_root, bid=None):
         by_aweme, summary = aggregate_comments.aggregate_paths(comm_fps, max_n=100)
         cands = _screen(list(filter_pool.iter_records(
             {"summary": summary, "by_aweme": by_aweme})), a)
-        cands.sort(key=lambda c: (c["score"], c["like_count"]), reverse=True)
+        _sort_cands(cands)
         ids = _today_ids(conn)
         done_ids, done_texts = _dup_guard(conn)   # 跨天去重：历史命中不再重复入选
         picks = []
         for c in cands:
             if len(ids) + len(picks) >= a.quota:
                 break
-            if _already(ids, c) or _is_dup(c, done_ids, done_texts):
+            if c.get("score") is None or _already(ids, c) or _is_dup(c, done_ids, done_texts):
                 continue
             picks.append(c)
         if picks:
@@ -612,6 +675,8 @@ def _ingest_keyword_run(conn, a, kw, run_root, bid=None):
             print(f"  [daily] +入库爆款命中 {len(picks)} 条（当日 {len(_today_ids(conn))}/{a.quota}）")
         else:
             print("  [daily] 本关键词无达标入选（原始数据已入库）")
+            if _screen_engine() == "agent":
+                _emit_judge_queue(a, kw, cands)
         row["status"] = "成功"
         _db.update_batch(conn, bid, status="cleaning", phase="cleanup")
 

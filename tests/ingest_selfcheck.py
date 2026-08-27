@@ -46,7 +46,8 @@ BAD = [
 def _args(tmp, quota, account="t"):
     return argparse.Namespace(
         root=tmp, account=account, quota=quota,
-        min_likes=1000, min_replies=40, min_len=20, min_score=50)
+        min_likes=1000, min_replies=40, min_len=20, min_score=50,
+        screen_engine='rules')
 
 
 def _mk_run(tmp, account="t"):

@@ -34,6 +34,18 @@
 - 万赞止停、页内热度早停、已采视频去重跳过均在真实日志中验证生效。
 - CDP 附着无 Chrome 环境：验证可改用 Edge（`--remote-debugging-port=9222`）完成有头采集与扫码登录。
 
+## [0.11.0] - 2026-08-27
+
+### Changed
+- **入池规则重定义（应用户要求）**：
+  - 门槛② 有效字数阈值 30→20，且计数口径收紧为**仅数字与中英文字符**（标点/空白/emoji 一律不计入）。
+  - 门槛③ 可成文性由固定规则评分改为 **AI 自主判定**：唯一标准是「能否据此写出新的、有明确观点的文案」；水贴/提问/接龙/玩梗等一票否决。
+- 新增 `tools/ai_scorer.py`：双引擎——AI_SCORER_API_BASE/KEY/MODEL 配置后走 OpenAI 兼容接口批量判分（temperature=0、评分手册版本化写入 score_breakdown 可追溯）；未配置则进入 **Agent 评审队列**模式（候选实时落 `.hcp-judge-<account>.jsonl`，由值班 Agent 评审后经 write_hits 入池，配额达标机制不受影响）。API 异常自动降级规则评分；离线调试路径固定用规则评分保证自检确定性。
+
+### Verified
+- 三份自检全部通过（selfcheck / sqlite_selfcheck 9 PASS / ingest_selfcheck 10 项）。
+- 冒烟验证：九千赞清单体过①②门槛进 Agent 队列、"这就是神医啊"6 字短评被门槛②拦截、「不缺钱不缺爱不缺德」新口径下有效字数=19（不达 >20，按新规如实淘汰）。
+
 ## [Unreleased]
 
 ### 规划中

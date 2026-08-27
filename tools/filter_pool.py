@@ -56,6 +56,8 @@ _EMOJI_RE = re.compile(
     "\U0000FE0F]"              # 变体选择符
 )
 _SYMBOL_RE = re.compile(r"[^\w\u4e00-\u9fff]")
+# 入池字数统计口径：仅数字和中英文字母/汉字，不含标点、空白、emoji 等
+_COUNT_RE = re.compile(r"[0-9A-Za-z\u4e00-\u9fff]")
 
 # 评分维度权重（0-100）
 _W_STR = 22   # 结构长度（30-80 字最佳）
@@ -74,7 +76,8 @@ def _clean(text):
 
 
 def _eff_len(text):
-    return len(_clean(text))
+    """有效字数：只计数字与中英文字符（标点/表情/空白不计入）。"""
+    return len(_COUNT_RE.findall(text or ""))
 
 
 def _hit(text, words):
@@ -167,7 +170,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--min-likes", type=int, default=1000)
     ap.add_argument("--min-replies", type=int, default=50)
-    ap.add_argument("--min-len", type=int, default=30)
+    ap.add_argument("--min-len", type=int, default=20)
     ap.add_argument("--min-score", type=float, default=55)
     ap.add_argument("--max-n", type=int, default=60)
     ap.add_argument("--seed", type=int, default=0)
