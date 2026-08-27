@@ -70,7 +70,7 @@ FIXED_REALTIME_POLICY = {
     "max_min": 45,
     "min_likes": 500,
     "min_replies": 50,
-    "video_min_likes": 10000,
+    "video_min_likes": 5000,
     "min_len": 20,
     "min_score": 55,
     "stale_stop_sec": 120,
@@ -317,7 +317,7 @@ def main():
     ap.add_argument("--max-min", type=float, default=45)
     ap.add_argument("--min-likes", type=int, default=500)
     ap.add_argument("--min-replies", type=int, default=50)
-    ap.add_argument("--video-min-likes", type=int, default=10000,
+    ap.add_argument("--video-min-likes", type=int, default=5000,
                     help="抓取级视频点赞门槛：低于该赞跳过评论深挖（透传给 collect_search）")
     ap.add_argument("--min-len", type=int, default=30)
     ap.add_argument("--min-score", type=float, default=55)

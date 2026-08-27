@@ -270,11 +270,11 @@ def ensure_mc_search_diag_patch(mc_root):
         return None
 
 
-def ensure_mc_video_gate_patch(mc_root, min_likes=10000):
+def ensure_mc_video_gate_patch(mc_root, min_likes=5000):
     """给 douyin/core.py 注入「视频级点赞门槛」（幂等，带 .bak 回滚）。
 
     规则（用户需求 2026-08-25 硬编码 1 万赞）：
-      - 搜索结果中的视频，statistics.digg_count < MC_VIDEO_MIN_LIKES（默认 10000）→ 跳过评论抓取，
+      - 搜索结果中的视频，statistics.digg_count < MC_VIDEO_MIN_LIKES（默认 5000）→ 跳过评论抓取，
         仅保留视频信息入库；
       - 低赞被跳过的视频不进 skip 名单（无评论），**二次抓到时若点赞已涨过门槛则正常抓取**；
       - 已采过的视频仍受 MC_SKIP_FILE 去重约束。
@@ -619,8 +619,8 @@ def main():
                     help="搜索结果排序：1=最多点赞(默认;实测严格赞降序，配合按赞止停几乎零浪费、请求量最少最稳) 0=综合(组合词在最多点赞下空桶时可切此破空) 2=最新发布")
     ap.add_argument("--query-correct", dest="query_correct", type=int, default=1, choices=[0, 1],
                     help="搜索纠错开关：1=允许抖音纠错(默认) 0=关闭纠错（对组合词空结果可试，可能返回原始词结果）")
-    ap.add_argument("--video-min-likes", dest="video_min_likes", type=int, default=10000,
-                    help="视频级点赞门槛（硬编码默认1万）：低于此值的视频跳过评论抓取，二次遇到涨过门槛则正常抓取")
+    ap.add_argument("--video-min-likes", dest="video_min_likes", type=int, default=5000,
+                    help="视频级点赞门槛（默认5千）：低于此值的视频跳过评论抓取，二次遇到涨过门槛则正常抓取")
     ap.add_argument("--min-likes", type=int, default=500,
                     help="评论翻页热度水位：页内最高赞低于此值且最高回复低于 --min-replies 时提前停止翻页")
     ap.add_argument("--min-replies", type=int, default=50,
