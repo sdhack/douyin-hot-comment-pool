@@ -104,7 +104,7 @@
 
 ### v2 两段式提速（19×）
 
-`run_daily_v2.py` 两段式调度器：合并单进程搜索 → 本地按赞排序去重 → 仅对 Top 高赞视频定向深挖（评论深度自适应 100~250 条）。**首轮全流程 25.5 分钟 → 81.8 秒（≈19×）**，详见 [`reports/compare-v1-vs-v2/`](reports/compare-v1-vs-v2/compare-v1-vs-v2.html)。
+`run_daily_v2.py` 两段式调度器：合并单进程搜索 → 本地按赞排序去重 → 仅对 Top 高赞视频定向深挖（评论深度自适应 100~250 条）。**首轮全流程 25.5 分钟 → 81.8 秒（≈19×）**，（对比报告产物已随 reports/ 目录移除，结论留存于 CHANGELOG）。
 
 ```bat
 python %POOL%\tools\run_daily_v2.py --root <工作根> --account <slug> ^
